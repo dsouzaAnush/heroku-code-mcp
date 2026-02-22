@@ -1,28 +1,84 @@
 # Heroku Code MCP
 
-Model Context Protocol (MCP) is a standardized way for LLMs to use external systems through tools. This repository provides a focused remote MCP server for the Heroku Platform API so agents can discover operations and execute validated API calls with a fixed low-context tool surface.
+> A token-efficient MCP server for the Heroku Platform API using a Code Mode pattern: `search` + `execute` + `auth_status`.
 
 This implementation is inspired by the Cloudflare Code Mode blog and Anthropic's programmatic tool-calling approach, where agents inspect available commands (for example via a `help` flow), select the right flags, and execute safely.
 
-The server supports `streamable-http` transport via `/mcp`.
+## Why This Is Useful
 
-## Server in this Repository
+Most API-oriented MCP servers expose many endpoint-specific tools, which inflates tool-list context and increases tool-selection errors. This server keeps the interface intentionally small:
 
-| Server | Description | URL |
-| --- | --- | --- |
-| `heroku-code-mcp` | Search + execute over Heroku Platform API operations with OAuth and write guardrails | `http://127.0.0.1:3000/mcp` |
+- `search` finds valid operations from Heroku API schema + docs context.
+- `execute` validates inputs and performs the selected API call.
+- `auth_status` reports per-caller OAuth readiness.
 
-## Tools Exposed
+Result: lower context footprint, predictable agent behavior, and safer mutation controls.
 
-| Tool | Purpose | Typical use |
-| --- | --- | --- |
-| `search` | Finds ranked API operations from schema + docs context | "list apps", "create pipeline", "get releases" |
-| `execute` | Validates and executes operation by `operation_id` | Read and write calls with schema checks |
-| `auth_status` | Returns auth status for current caller | Preflight before `execute` |
+## Context Comparison
 
-## Access from Any MCP Client
+Measured from `tools/list` payload size (JSON bytes, ~chars/4 token estimate), February 22, 2026.
 
-If your MCP client supports remote MCP directly, configure it with the server URL.
+| Approach | Tools | list_tools payload | Approx tokens |
+| --- | ---: | ---: | ---: |
+| `heroku mcp:start` (official) | 37 | 25,500 bytes | ~6,375 |
+| `heroku-code-mcp` (this repo) | 3 | 1,469 bytes | ~368 |
+
+Source: `/Users/anush.dsouza/startup/Aura12/work/codemode/heroku/benchmarks/results/context-footprint-2026-02-22.json`
+
+## Benchmark Snapshot
+
+Measured on the same machine/account, February 22, 2026.
+
+| Metric | This repo (`http://127.0.0.1:3000/mcp`) | Official (`heroku mcp:start`) |
+| --- | ---: | ---: |
+| Connect avg | 14.8 ms | 10,168.7 ms |
+| list_tools avg | 4.3 ms | 10.3 ms |
+| Read operation avg | 528.0 ms (`execute GET /apps`) | 9,697.4 ms (`list_apps`) |
+
+Sources:
+- `/Users/anush.dsouza/startup/Aura12/work/codemode/heroku/benchmarks/results/custom-local-http-2026-02-22.json`
+- `/Users/anush.dsouza/startup/Aura12/work/codemode/heroku/benchmarks/results/official-heroku-mcp-start-2026-02-22.json`
+
+## Get Started
+
+MCP URL: `http://127.0.0.1:3000/mcp`
+
+```bash
+cd /Users/anush.dsouza/startup/Aura12/work/codemode/heroku
+npm install
+npm run build
+npm test
+```
+
+### Option 1: OAuth (Recommended)
+
+Configure OAuth env vars and use `/oauth/start` + `/oauth/callback` flow.
+
+### Option 2: Local token seeding from Heroku CLI
+
+```bash
+heroku auth:whoami
+npm run seed:token
+```
+
+Start server (use key printed by seed command):
+
+```bash
+TOKEN_STORE_PATH=./data/tokens.integration.json \
+TOKEN_ENCRYPTION_KEY_BASE64='<seed-output-key>' \
+PORT=3000 HOST=127.0.0.1 npm run dev
+```
+
+Smoke test:
+
+```bash
+curl -sS http://127.0.0.1:3000/healthz
+MCP_URL=http://127.0.0.1:3000/mcp USER_ID=default npm run smoke:mcp
+```
+
+## Add to an Agent
+
+Direct streamable HTTP configuration:
 
 ```json
 {
@@ -38,7 +94,7 @@ If your MCP client supports remote MCP directly, configure it with the server UR
 }
 ```
 
-If your MCP client requires a command-based bridge, use `mcp-remote`:
+If your client needs a command-based bridge:
 
 ```json
 {
@@ -54,46 +110,33 @@ If your MCP client requires a command-based bridge, use `mcp-remote`:
 }
 ```
 
-## Quick Start
+## Tools
 
-```bash
-cd /Users/anush.dsouza/startup/Aura12/work/codemode/heroku
-npm install
-npm run build
-npm test
+| Tool | Description |
+| --- | --- |
+| `search` | Ranks Heroku operations by natural-language query |
+| `execute` | Validates params/body and executes by `operation_id` |
+| `auth_status` | Returns `{authenticated, scopes, expires_at}` |
+
+```
+Agent                           MCP Server
+  │                                  │
+  ├──search({query: "list apps"})──►│ rank operations from catalog/index
+  │◄──[GET /apps, ...]───────────────│
+  │                                  │
+  ├──execute({operation_id: ...})───►│ validate + call Heroku API
+  │◄──{status, headers, body}────────│
 ```
 
-Seed an auth token from local Heroku CLI login:
-
-```bash
-heroku auth:whoami
-npm run seed:token
-```
-
-Start server:
-
-```bash
-TOKEN_STORE_PATH=./data/tokens.integration.json \
-TOKEN_ENCRYPTION_KEY_BASE64='<seed-output-key>' \
-PORT=3000 HOST=127.0.0.1 npm run dev
-```
-
-Smoke test:
-
-```bash
-curl -sS http://127.0.0.1:3000/healthz
-MCP_URL=http://127.0.0.1:3000/mcp USER_ID=default npm run smoke:mcp
-```
-
-## Tool Calling Flow
+## Typical Workflow
 
 1. Call `auth_status`.
-2. Call `search` with an intent query (for example, `list apps`).
-3. Pick one `operation_id` from ranked results.
-4. Call `execute` with parameters.
-5. For writes: call `execute` with `dry_run=true`, then replay with returned `confirm_write_token` and `ALLOW_WRITES=true`.
+2. Call `search` for intent mapping.
+3. Pick one `operation_id` from results.
+4. Call `execute` with path/query/body.
+5. For writes: call `dry_run=true`, then replay with `confirm_write_token` and `ALLOW_WRITES=true`.
 
-Example `search` input:
+Example `search`:
 
 ```json
 {
@@ -102,7 +145,7 @@ Example `search` input:
 }
 ```
 
-Example read `execute` input:
+Example read `execute`:
 
 ```json
 {
@@ -110,7 +153,7 @@ Example read `execute` input:
 }
 ```
 
-Example write `execute` dry run:
+Example write dry-run:
 
 ```json
 {
@@ -125,11 +168,27 @@ Example write `execute` dry run:
 }
 ```
 
+## Safety and Guardrails
+
+- Mutations (`POST`, `PATCH`, `PUT`, `DELETE`) blocked by default (`ALLOW_WRITES=false`).
+- Mutations require request-bound `confirm_write_token` from dry-run.
+- Sensitive headers and body fields are redacted.
+- Idempotent retry policy for transient failures (`GET` / `HEAD`).
+
+## Performance Design
+
+- 3-tool surface keeps tool selection and prompt context small.
+- Persistent catalog cache (`CATALOG_CACHE_PATH`) enables fast boot.
+- Background refresh decouples ingestion from request path.
+- Conditional fetches (`ETag`/`Last-Modified`) cut refresh overhead.
+- Short read cache (`READ_CACHE_TTL_MS`) accelerates repeated reads.
+- Output bounding (`EXECUTE_MAX_BODY_BYTES`, `EXECUTE_BODY_PREVIEW_CHARS`) prevents oversized responses from dominating context.
+
 ## Configuration
 
-Key environment variables:
+Important env vars:
 
-- `ALLOW_WRITES` (default `false`)
+- `ALLOW_WRITES`
 - `REQUEST_TIMEOUT_MS`
 - `MAX_RETRIES`
 - `CATALOG_CACHE_PATH`
@@ -137,38 +196,22 @@ Key environment variables:
 - `EXECUTE_MAX_BODY_BYTES`
 - `EXECUTE_BODY_PREVIEW_CHARS`
 
-See `/Users/anush.dsouza/startup/Aura12/work/codemode/heroku/.env.example` for the full set.
+Full example: `/Users/anush.dsouza/startup/Aura12/work/codemode/heroku/.env.example`
 
-## Safety Model
+## Repository Layout
 
-- Mutating methods (`POST`, `PATCH`, `PUT`, `DELETE`) are blocked unless `ALLOW_WRITES=true`.
-- Mutating calls require `confirm_write_token` tied to request shape.
-- Sensitive headers and body fields are redacted.
-
-## Performance Model
-
-- Fixed 3-tool MCP surface to keep context small.
-- Persisted catalog cache enables fast startup and asynchronous refresh.
-- Conditional refresh (`ETag` / `Last-Modified`) reduces ingestion cost.
-- Short TTL cache for repeated read calls (`GET` / `HEAD`).
-- Execute body truncation prevents large payloads from blowing up agent context.
-
-## Benchmarks
-
-Benchmark methodology and captured results are in:
-
-- `/Users/anush.dsouza/startup/Aura12/work/codemode/heroku/BENCHMARKS.md`
-- `/Users/anush.dsouza/startup/Aura12/work/codemode/heroku/benchmarks/results`
+- `src/schema/*`: ingestion + operation normalization + cache
+- `src/search/*`: search index + ranking
+- `src/execute/*`: validation + Heroku API execution
+- `src/auth/*`: OAuth + encrypted token storage
+- `tests/*`: catalog/search/execute tests
+- `benchmarks/results/*`: benchmark artifacts
+- `BENCHMARKS.md`: benchmark methodology
+- `REFERENCES.md`: references
 
 ## Troubleshooting
 
-- Connection error in MCP Inspector: verify server is running and URL is `http://127.0.0.1:3000/mcp`.
-- `AUTH_REQUIRED`: run token seed flow or complete OAuth bootstrap.
-- Write blocked: check `ALLOW_WRITES=true` and use matching `confirm_write_token`.
-- Empty/weak search results: use concrete nouns and resource names (`apps`, `releases`, `pipelines`).
-
-## Development
-
-- Source: `/Users/anush.dsouza/startup/Aura12/work/codemode/heroku/src`
-- Tests: `/Users/anush.dsouza/startup/Aura12/work/codemode/heroku/tests`
-- References: `/Users/anush.dsouza/startup/Aura12/work/codemode/heroku/REFERENCES.md`
+- MCP Inspector connection error: ensure URL is `http://127.0.0.1:3000/mcp`.
+- `AUTH_REQUIRED`: seed token or complete OAuth flow.
+- Write blocked: set `ALLOW_WRITES=true` and send matching `confirm_write_token`.
+- Unexpected large responses: reduce payload scope or tune execute body limits.
