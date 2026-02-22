@@ -1,0 +1,31 @@
+{
+  "measured_at": "2026-02-22T12:49:26.283Z",
+  "endpoint": "heroku mcp:start (stdio)",
+  "runs": 3,
+  "stats": [
+    {
+      "name": "connect",
+      "avg_ms": 10168.7,
+      "p50_ms": 10701.2,
+      "p95_ms": 11046.4,
+      "min_ms": 8758.5,
+      "max_ms": 11046.4
+    },
+    {
+      "name": "list_tools",
+      "avg_ms": 10.3,
+      "p50_ms": 11.2,
+      "p95_ms": 11.2,
+      "min_ms": 8.5,
+      "max_ms": 11.2
+    },
+    {
+      "name": "list_apps",
+      "avg_ms": 9697.4,
+      "p50_ms": 10494.5,
+      "p95_ms": 11119.9,
+      "min_ms": 7477.9,
+      "max_ms": 11119.9
+    }
+  ]
+}

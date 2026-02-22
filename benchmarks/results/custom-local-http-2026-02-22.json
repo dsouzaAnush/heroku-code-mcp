@@ -1,0 +1,47 @@
+{
+  "measured_at": "2026-02-22T12:47:55.335Z",
+  "endpoint": "http://127.0.0.1:3000/mcp",
+  "runs": 10,
+  "stats": [
+    {
+      "name": "connect",
+      "avg_ms": 14.8,
+      "p50_ms": 8.5,
+      "p95_ms": 66.1,
+      "min_ms": 4.9,
+      "max_ms": 66.1
+    },
+    {
+      "name": "list_tools",
+      "avg_ms": 4.3,
+      "p50_ms": 4.6,
+      "p95_ms": 8.4,
+      "min_ms": 2.1,
+      "max_ms": 8.4
+    },
+    {
+      "name": "auth_status",
+      "avg_ms": 4.5,
+      "p50_ms": 3.3,
+      "p95_ms": 11.5,
+      "min_ms": 1.2,
+      "max_ms": 11.5
+    },
+    {
+      "name": "search",
+      "avg_ms": 4.6,
+      "p50_ms": 4.9,
+      "p95_ms": 6.7,
+      "min_ms": 2.6,
+      "max_ms": 6.7
+    },
+    {
+      "name": "execute_get_apps",
+      "avg_ms": 528,
+      "p50_ms": 492.4,
+      "p95_ms": 731.2,
+      "min_ms": 406.6,
+      "max_ms": 731.2
+    }
+  ]
+}

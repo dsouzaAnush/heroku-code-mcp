@@ -1,0 +1,17 @@
+{
+  "measured_at": "2026-02-22T12:50:35.063Z",
+  "measurements": [
+    {
+      "implementation": "custom-heroku-http",
+      "tool_count": 3,
+      "list_tools_json_bytes": 1469,
+      "approx_tokens_chars_div4": 368
+    },
+    {
+      "implementation": "official-heroku-mcp-start-stdio",
+      "tool_count": 37,
+      "list_tools_json_bytes": 25500,
+      "approx_tokens_chars_div4": 6375
+    }
+  ]
+}
