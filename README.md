@@ -124,17 +124,17 @@ This does not mean every endpoint in every environment will always have the same
   - Official: `list_apps`
 
 Artifacts:
-- `/Users/anush.dsouza/startup/Aura12/work/codemode/heroku/benchmarks/results/context-footprint-2026-02-22.json`
-- `/Users/anush.dsouza/startup/Aura12/work/codemode/heroku/benchmarks/results/custom-local-http-2026-02-22.json`
-- `/Users/anush.dsouza/startup/Aura12/work/codemode/heroku/benchmarks/results/official-heroku-mcp-start-2026-02-22.json`
-- `/Users/anush.dsouza/startup/Aura12/work/codemode/heroku/BENCHMARKS.md`
+- `benchmarks/results/context-footprint-2026-02-22.json`
+- `benchmarks/results/custom-local-http-2026-02-22.json`
+- `benchmarks/results/official-heroku-mcp-start-2026-02-22.json`
+- `BENCHMARKS.md`
 
 ## Get Started
 
 MCP URL: `http://127.0.0.1:3000/mcp`
 
 ```bash
-cd /Users/anush.dsouza/startup/Aura12/work/codemode/heroku
+cd heroku
 npm install
 npm run build
 npm test
@@ -267,7 +267,7 @@ Key env vars:
 - `EXECUTE_MAX_BODY_BYTES`
 - `EXECUTE_BODY_PREVIEW_CHARS`
 
-Full example: `/Users/anush.dsouza/startup/Aura12/work/codemode/heroku/.env.example`
+Full example: `.env.example`
 
 ## Repository Layout
 
