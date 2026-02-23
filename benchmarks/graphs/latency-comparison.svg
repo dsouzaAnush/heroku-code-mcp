@@ -1,0 +1,32 @@
+<svg width="860" height="260" viewBox="0 0 860 260" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Latency comparison summary">
+  <rect width="860" height="260" fill="#ffffff"/>
+  <text x="24" y="30" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Helvetica,Arial,sans-serif" font-size="20" font-weight="700" fill="#111827">Latency Comparison Snapshot</text>
+  <text x="24" y="50" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Helvetica,Arial,sans-serif" font-size="12" fill="#4b5563">Same machine/account benchmark (Feb 22, 2026)</text>
+
+  <g transform="translate(24,68)">
+    <rect width="250" height="168" rx="10" fill="#f8fafc" stroke="#cbd5e1"/>
+    <text x="16" y="28" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Helvetica,Arial,sans-serif" font-size="15" font-weight="700" fill="#0f172a">Connect</text>
+    <text x="16" y="58" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Helvetica,Arial,sans-serif" font-size="12" fill="#475569">official: 10,168.7 ms</text>
+    <text x="16" y="84" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Helvetica,Arial,sans-serif" font-size="12" fill="#0369a1">heroku-code-mcp: 14.8 ms</text>
+    <text x="16" y="126" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Helvetica,Arial,sans-serif" font-size="30" font-weight="800" fill="#15803d">687x</text>
+    <text x="120" y="126" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Helvetica,Arial,sans-serif" font-size="12" fill="#475569">faster</text>
+  </g>
+
+  <g transform="translate(304,68)">
+    <rect width="250" height="168" rx="10" fill="#f8fafc" stroke="#cbd5e1"/>
+    <text x="16" y="28" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Helvetica,Arial,sans-serif" font-size="15" font-weight="700" fill="#0f172a">list_tools</text>
+    <text x="16" y="58" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Helvetica,Arial,sans-serif" font-size="12" fill="#475569">official: 10.3 ms</text>
+    <text x="16" y="84" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Helvetica,Arial,sans-serif" font-size="12" fill="#0369a1">heroku-code-mcp: 4.3 ms</text>
+    <text x="16" y="126" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Helvetica,Arial,sans-serif" font-size="30" font-weight="800" fill="#15803d">2.4x</text>
+    <text x="112" y="126" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Helvetica,Arial,sans-serif" font-size="12" fill="#475569">faster</text>
+  </g>
+
+  <g transform="translate(584,68)">
+    <rect width="250" height="168" rx="10" fill="#f8fafc" stroke="#cbd5e1"/>
+    <text x="16" y="28" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Helvetica,Arial,sans-serif" font-size="15" font-weight="700" fill="#0f172a">Read Operation</text>
+    <text x="16" y="58" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Helvetica,Arial,sans-serif" font-size="12" fill="#475569">official (`list_apps`): 9,697.4 ms</text>
+    <text x="16" y="84" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Helvetica,Arial,sans-serif" font-size="12" fill="#0369a1">heroku-code-mcp (`GET /apps`): 528.0 ms</text>
+    <text x="16" y="126" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Helvetica,Arial,sans-serif" font-size="30" font-weight="800" fill="#15803d">18.4x</text>
+    <text x="118" y="126" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Helvetica,Arial,sans-serif" font-size="12" fill="#475569">faster</text>
+  </g>
+</svg>

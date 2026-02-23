@@ -64,47 +64,11 @@ Benchmarks were captured on February 22, 2026 on the same machine and account fo
 
 ### Comparison Graphs
 
-These graphs use per-metric scales so each pair is directly readable. The previous combined charts compressed smaller values.
+These are static charts so labels stay readable in GitHub without giant auto-scaled Mermaid panels.
 
-```mermaid
-xychart-beta
-    title "Tool Count (lower is better)"
-    x-axis ["heroku-code-mcp", "official"]
-    y-axis "tools" 0 --> 40
-    bar [3, 37]
-```
+![Context reduction chart](benchmarks/graphs/context-reduction.svg)
 
-```mermaid
-xychart-beta
-    title "Tool-List Context Tokens (lower is better)"
-    x-axis ["heroku-code-mcp", "official"]
-    y-axis "approx tokens" 0 --> 6500
-    bar [368, 6375]
-```
-
-```mermaid
-xychart-beta
-    title "Connect Latency (ms, lower is better)"
-    x-axis ["heroku-code-mcp", "official"]
-    y-axis "ms" 0 --> 10500
-    bar [14.8, 10168.7]
-```
-
-```mermaid
-xychart-beta
-    title "list_tools Latency (ms, lower is better)"
-    x-axis ["heroku-code-mcp", "official"]
-    y-axis "ms" 0 --> 12
-    bar [4.3, 10.3]
-```
-
-```mermaid
-xychart-beta
-    title "Read Operation Latency (ms, lower is better)"
-    x-axis ["heroku-code-mcp", "official"]
-    y-axis "ms" 0 --> 10000
-    bar [528.0, 9697.4]
-```
+![Latency comparison chart](benchmarks/graphs/latency-comparison.svg)
 
 ### How to Read These Results
 
