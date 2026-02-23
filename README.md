@@ -6,104 +6,111 @@ Design references:
 - [Cloudflare Code Mode MCP](https://blog.cloudflare.com/code-mode-mcp/)
 - [Anthropic: Building Effective Agents (advanced tool use)](https://www.anthropic.com/engineering/building-effective-agents)
 
-## Why This Is Useful
-
-Most API-oriented MCP servers expose many endpoint-specific tools, which inflates tool-list context and increases tool-selection errors. This server keeps the interface intentionally small:
-
-- `search` finds valid operations from Heroku API schema + docs context.
-- `execute` validates inputs and performs the selected API call.
-- `auth_status` reports per-caller OAuth readiness.
-
-Result: lower context footprint, predictable agent behavior, and safer mutation controls.
-
-## Why Better Than Official Heroku MCP
-
-This implementation is better for agent-driven workflows because it compresses tool surface and shifts complexity server-side.
-
-- Context footprint: `3` tools vs `37` in `heroku mcp:start`.
-- Tool-list tokens: `~368` vs `~6,375` (~`94.2%` lower).
-- Speed: connect ~`687x` faster, read path ~`18.4x` faster in recorded benchmarks.
-- Reliability for agents: one deterministic `execute` contract is easier than choosing among many endpoint-specific tools.
-- Safety: write gating (`ALLOW_WRITES`, `dry_run`, `confirm_write_token`) is built in.
-
 ## Context Comparison
 
-Measured from `tools/list` payload size (JSON bytes, ~chars/4 token estimate), February 22, 2026.
+| Approach | Tool surface | Approx context cost at tool-list time | Fits in a 200k-token context window? |
+| --- | --- | --- | --- |
+| `heroku mcp:start` (official) | 37 endpoint-oriented tools | ~6,375 tokens | Yes, but consumes meaningful budget up front |
+| `heroku-code-mcp` (this repo) | 3 control tools (`search`, `execute`, `auth_status`) | ~368 tokens | Yes, with minimal up-front overhead |
 
-| Approach | Tools | list_tools payload | Approx tokens |
+The practical impact is that the agent starts with a much smaller tool schema, then asks the server for just-in-time endpoint discovery. This keeps prompt budget available for user intent, planning, and response quality instead of spending it on static endpoint metadata.
+
+## The Problem
+
+Heroku’s API surface is broad, and an endpoint-per-tool MCP model makes the agent choose between many tools before it has enough task context. That usually increases tool-selection ambiguity, consumes tokens early, and makes multi-step tasks more brittle. The issue is not that many tools are inherently bad, but that model context is scarce and endpoint selection is an agent planning problem, not just a transport problem.
+
+## The Approach
+
+This server applies a Code Mode-style control loop with deterministic inputs:
+
+1. `search` maps natural language intent to ranked `operation_id` candidates.
+2. `execute` validates and performs the selected Heroku API operation.
+3. `auth_status` provides explicit auth state so agents can branch cleanly.
+
+The server holds schema intelligence and safety policy centrally. The agent gets a small control surface and a stable execution contract.
+
+## Tools
+
+| Tool | What it does | Why it exists |
+| --- | --- | --- |
+| `search` | Ranks Heroku operations from schema + docs context | Reduces endpoint selection ambiguity |
+| `execute` | Validates params/body and executes by `operation_id` | Gives one deterministic execution path |
+| `auth_status` | Returns `{authenticated, scopes, expires_at}` | Supports explicit auth-aware planning |
+
+```text
+Agent                           MCP Server
+  │                                  │
+  ├──search({query: "list apps"})──►│ rank operations from catalog/index
+  │◄──[GET /apps, ...]───────────────│
+  │                                  │
+  ├──execute({operation_id: ...})───►│ validate + call Heroku API
+  │◄──{status, headers, body}────────│
+```
+
+## Benchmark Highlights
+
+Benchmarks were captured on February 22, 2026 on the same machine and account for both implementations. The numbers below compare this repo’s local HTTP MCP endpoint against `heroku mcp:start` over stdio.
+
+### Raw Comparison
+
+| Metric | `heroku-code-mcp` | `heroku mcp:start` | Delta |
 | --- | ---: | ---: | ---: |
-| `heroku mcp:start` (official) | 37 | 25,500 bytes | ~6,375 |
-| `heroku-code-mcp` (this repo) | 3 | 1,469 bytes | ~368 |
+| Tool count | 3 | 37 | 91.9% lower |
+| Tool-list payload bytes | 1,469 | 25,500 | 94.2% lower |
+| Tool-list approx tokens | 368 | 6,375 | 94.2% lower |
+| Connect avg | 14.8 ms | 10,168.7 ms | 687x faster |
+| `list_tools` avg | 4.3 ms | 10.3 ms | 2.4x faster |
+| Read op avg | 528.0 ms (`execute GET /apps`) | 9,697.4 ms (`list_apps`) | 18.4x faster |
 
-### Context Graphs
+### Readable Comparison Graphs
 
 ```mermaid
-pie showData
-title Tool Count (lower is better)
-"heroku-code-mcp" : 3
-"heroku mcp:start" : 37
+xychart-beta
+    title "Context Reduction vs Official (higher is better)"
+    x-axis ["Tool count", "Tool-list tokens", "Tool-list bytes"]
+    y-axis "percent reduction" 0 --> 100
+    bar [91.9, 94.2, 94.2]
 ```
 
 ```mermaid
-pie showData
-title Tool-List Tokens (lower is better)
-"heroku-code-mcp" : 368
-"heroku mcp:start" : 6375
+xychart-beta
+    title "Speedup vs Official (higher is better)"
+    x-axis ["Connect", "list_tools", "Read operation"]
+    y-axis "times faster" 0 --> 700
+    bar [687.0, 2.4, 18.4]
 ```
 
 ```mermaid
-pie showData
-title list_tools Payload Bytes (lower is better)
-"heroku-code-mcp" : 1469
-"heroku mcp:start" : 25500
+xychart-beta
+    title "Absolute Latency (ms, lower is better)"
+    x-axis ["Connect", "list_tools", "Read operation"]
+    y-axis "ms" 0 --> 10500
+    bar "heroku-code-mcp" [14.8, 4.3, 528.0]
+    bar "heroku mcp:start" [10168.7, 10.3, 9697.4]
 ```
 
-`heroku-code-mcp` reduces tool-list context by about `94.2%` in both bytes and tokens.
+### How to Read These Results
 
-Source: `/Users/anush.dsouza/startup/Aura12/work/codemode/heroku/benchmarks/results/context-footprint-2026-02-22.json`
+The strongest win is context footprint. A 3-tool interface materially lowers initial prompt overhead and reduces tool-choice branching for the model. The second win is connection and read-path latency under this benchmark harness. In measured runs, `heroku mcp:start` paid a much larger connect-time cost, and its measured read operation was substantially slower than `execute GET /apps` on this server.
 
-## Benchmark Snapshot
+This does not mean every endpoint in every environment will always have the same multiplier. It means the measured default experience in this setup favored the Code Mode control surface for both context economy and latency.
 
-Measured on the same machine/account, February 22, 2026.
+## Benchmark Methodology
 
-| Metric | This repo (`http://127.0.0.1:3000/mcp`) | Official (`heroku mcp:start`) |
-| --- | ---: | ---: |
-| Connect avg | 14.8 ms | 10,168.7 ms |
-| list_tools avg | 4.3 ms | 10.3 ms |
-| Read operation avg | 528.0 ms (`execute GET /apps`) | 9,697.4 ms (`list_apps`) |
+- Date: February 22, 2026.
+- Environment: same local machine, same Heroku account, warm network.
+- Custom server run count: 10.
+- Official server run count: 3.
+- Context estimate: `ceil(list_tools_json_bytes / 4)` for rough token approximation.
+- Read comparison pairing:
+  - Custom: `execute GET /apps`
+  - Official: `list_apps`
 
-### Speed Graphs
-
-```mermaid
-pie showData
-title Connect Latency Avg (ms, lower is better)
-"heroku-code-mcp" : 14.8
-"heroku mcp:start" : 10168.7
-```
-
-```mermaid
-pie showData
-title list_tools Latency Avg (ms, lower is better)
-"heroku-code-mcp" : 4.3
-"heroku mcp:start" : 10.3
-```
-
-```mermaid
-pie showData
-title Read Operation Latency Avg (ms, lower is better)
-"heroku-code-mcp execute GET /apps" : 528.0
-"heroku mcp:start list_apps" : 9697.4
-```
-
-### Speed Multipliers
-
-- Connect: ~`687x` faster (`10,168.7 / 14.8`)
-- `list_tools`: ~`2.4x` faster (`10.3 / 4.3`)
-- Read operation: ~`18.4x` faster (`9,697.4 / 528.0`)
-
-Sources:
+Artifacts:
+- `/Users/anush.dsouza/startup/Aura12/work/codemode/heroku/benchmarks/results/context-footprint-2026-02-22.json`
 - `/Users/anush.dsouza/startup/Aura12/work/codemode/heroku/benchmarks/results/custom-local-http-2026-02-22.json`
 - `/Users/anush.dsouza/startup/Aura12/work/codemode/heroku/benchmarks/results/official-heroku-mcp-start-2026-02-22.json`
+- `/Users/anush.dsouza/startup/Aura12/work/codemode/heroku/BENCHMARKS.md`
 
 ## Get Started
 
@@ -118,7 +125,7 @@ npm test
 
 ### Option 1: OAuth (Recommended)
 
-Configure OAuth env vars and use `/oauth/start` + `/oauth/callback` flow.
+Configure OAuth env vars and use `/oauth/start` + `/oauth/callback`.
 
 ### Option 2: Local token seeding from Heroku CLI
 
@@ -127,7 +134,7 @@ heroku auth:whoami
 npm run seed:token
 ```
 
-Start server (use key printed by seed command):
+Start server:
 
 ```bash
 TOKEN_STORE_PATH=./data/tokens.integration.json \
@@ -144,7 +151,7 @@ MCP_URL=http://127.0.0.1:3000/mcp USER_ID=default npm run smoke:mcp
 
 ## Add to an Agent
 
-Direct streamable HTTP configuration:
+### Direct streamable HTTP
 
 ```json
 {
@@ -160,7 +167,7 @@ Direct streamable HTTP configuration:
 }
 ```
 
-If your client needs a command-based bridge:
+### Command bridge (if needed)
 
 ```json
 {
@@ -176,31 +183,13 @@ If your client needs a command-based bridge:
 }
 ```
 
-## Tools
-
-| Tool | Description |
-| --- | --- |
-| `search` | Ranks Heroku operations by natural-language query |
-| `execute` | Validates params/body and executes by `operation_id` |
-| `auth_status` | Returns `{authenticated, scopes, expires_at}` |
-
-```
-Agent                           MCP Server
-  │                                  │
-  ├──search({query: "list apps"})──►│ rank operations from catalog/index
-  │◄──[GET /apps, ...]───────────────│
-  │                                  │
-  ├──execute({operation_id: ...})───►│ validate + call Heroku API
-  │◄──{status, headers, body}────────│
-```
-
 ## Typical Workflow
 
 1. Call `auth_status`.
-2. Call `search` for intent mapping.
-3. Pick one `operation_id` from results.
-4. Call `execute` with path/query/body.
-5. For writes: call `dry_run=true`, then replay with `confirm_write_token` and `ALLOW_WRITES=true`.
+2. Call `search` with intent.
+3. Choose one `operation_id`.
+4. Call `execute` with `path_params`, `query_params`, and `body` as needed.
+5. For writes, run `dry_run=true` first, then replay with `confirm_write_token` and `ALLOW_WRITES=true`.
 
 Example `search`:
 
@@ -236,24 +225,23 @@ Example write dry-run:
 
 ## Safety and Guardrails
 
-- Mutations (`POST`, `PATCH`, `PUT`, `DELETE`) blocked by default (`ALLOW_WRITES=false`).
-- Mutations require request-bound `confirm_write_token` from dry-run.
+- Mutations (`POST`, `PATCH`, `PUT`, `DELETE`) are blocked by default.
+- Mutations require both `ALLOW_WRITES=true` and a matching `confirm_write_token`.
 - Sensitive headers and body fields are redacted.
-- Idempotent retry policy for transient failures (`GET` / `HEAD`).
+- Idempotent retries (`GET` / `HEAD`) are enabled for transient failures.
 
 ## Performance Design
 
-- 3-tool surface keeps tool selection and prompt context small.
-- Persistent catalog cache (`CATALOG_CACHE_PATH`) enables fast boot.
+- 3-tool MCP surface minimizes up-front tool context.
+- Persistent catalog cache (`CATALOG_CACHE_PATH`) avoids cold-start re-ingestion.
 - Background refresh decouples ingestion from request path.
-- Conditional fetches (`ETag`/`Last-Modified`) cut refresh overhead.
-- Short read cache (`READ_CACHE_TTL_MS`) accelerates repeated reads.
-- Output bounding (`EXECUTE_MAX_BODY_BYTES`, `EXECUTE_BODY_PREVIEW_CHARS`) prevents oversized responses from dominating context.
+- Conditional fetches (`ETag`/`Last-Modified`) reduce refresh cost.
+- Short read cache (`READ_CACHE_TTL_MS`) improves repeated read latency.
+- Output bounds (`EXECUTE_MAX_BODY_BYTES`, `EXECUTE_BODY_PREVIEW_CHARS`) prevent oversized responses from dominating context.
 
 ## Configuration
 
-Important env vars:
-
+Key env vars:
 - `ALLOW_WRITES`
 - `REQUEST_TIMEOUT_MS`
 - `MAX_RETRIES`
@@ -272,12 +260,12 @@ Full example: `/Users/anush.dsouza/startup/Aura12/work/codemode/heroku/.env.exam
 - `src/auth/*`: OAuth + encrypted token storage
 - `tests/*`: catalog/search/execute tests
 - `benchmarks/results/*`: benchmark artifacts
-- `BENCHMARKS.md`: benchmark methodology
-- `REFERENCES.md`: references
+- `BENCHMARKS.md`: benchmark methodology details
+- `REFERENCES.md`: external references
 
 ## Troubleshooting
 
-- MCP Inspector connection error: ensure URL is `http://127.0.0.1:3000/mcp`.
+- MCP Inspector connection error: confirm URL is `http://127.0.0.1:3000/mcp` and server is running.
 - `AUTH_REQUIRED`: seed token or complete OAuth flow.
 - Write blocked: set `ALLOW_WRITES=true` and send matching `confirm_write_token`.
-- Unexpected large responses: reduce payload scope or tune execute body limits.
+- Large response body: narrow query scope or lower output caps for stricter truncation.
