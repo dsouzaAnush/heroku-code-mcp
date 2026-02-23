@@ -23,6 +23,31 @@ Measured from `tools/list` payload size (JSON bytes, ~chars/4 token estimate), F
 | `heroku mcp:start` (official) | 37 | 25,500 bytes | ~6,375 |
 | `heroku-code-mcp` (this repo) | 3 | 1,469 bytes | ~368 |
 
+### Context Graphs
+
+```mermaid
+pie showData
+title Tool Count (lower is better)
+"heroku-code-mcp" : 3
+"heroku mcp:start" : 37
+```
+
+```mermaid
+pie showData
+title Tool-List Tokens (lower is better)
+"heroku-code-mcp" : 368
+"heroku mcp:start" : 6375
+```
+
+```mermaid
+pie showData
+title list_tools Payload Bytes (lower is better)
+"heroku-code-mcp" : 1469
+"heroku mcp:start" : 25500
+```
+
+`heroku-code-mcp` reduces tool-list context by about `94.2%` in both bytes and tokens.
+
 Source: `/Users/anush.dsouza/startup/Aura12/work/codemode/heroku/benchmarks/results/context-footprint-2026-02-22.json`
 
 ## Benchmark Snapshot
@@ -34,6 +59,35 @@ Measured on the same machine/account, February 22, 2026.
 | Connect avg | 14.8 ms | 10,168.7 ms |
 | list_tools avg | 4.3 ms | 10.3 ms |
 | Read operation avg | 528.0 ms (`execute GET /apps`) | 9,697.4 ms (`list_apps`) |
+
+### Speed Graphs
+
+```mermaid
+pie showData
+title Connect Latency Avg (ms, lower is better)
+"heroku-code-mcp" : 14.8
+"heroku mcp:start" : 10168.7
+```
+
+```mermaid
+pie showData
+title list_tools Latency Avg (ms, lower is better)
+"heroku-code-mcp" : 4.3
+"heroku mcp:start" : 10.3
+```
+
+```mermaid
+pie showData
+title Read Operation Latency Avg (ms, lower is better)
+"heroku-code-mcp execute GET /apps" : 528.0
+"heroku mcp:start list_apps" : 9697.4
+```
+
+### Speed Multipliers
+
+- Connect: ~`687x` faster (`10,168.7 / 14.8`)
+- `list_tools`: ~`2.4x` faster (`10.3 / 4.3`)
+- Read operation: ~`18.4x` faster (`9,697.4 / 528.0`)
 
 Sources:
 - `/Users/anush.dsouza/startup/Aura12/work/codemode/heroku/benchmarks/results/custom-local-http-2026-02-22.json`
