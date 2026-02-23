@@ -18,7 +18,7 @@
 | Benchmark | Connect avg | list_tools avg | Read operation avg |
 | --- | ---: | ---: | ---: |
 | This repo (`/mcp`) | 14.8 ms | 4.3 ms | 528.0 ms (`execute GET /apps`) |
-| Official (`heroku mcp:start`) | 10,168.7 ms | 10.3 ms | 9,697.4 ms (`list_apps`) |
+| Official Heroku MCP | 10,168.7 ms | 10.3 ms | 9,697.4 ms (`list_apps`) |
 
 ### Context footprint
 

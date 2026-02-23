@@ -10,7 +10,7 @@ Design references:
 
 | Approach | Tool surface | Approx context cost at tool-list time | Fits in a 200k-token context window? |
 | --- | --- | --- | --- |
-| `heroku mcp:start` (official) | 37 endpoint-oriented tools | ~6,375 tokens | Yes, but consumes meaningful budget up front |
+| official Heroku MCP | 37 endpoint-oriented tools | ~6,375 tokens | Yes, but consumes meaningful budget up front |
 | `heroku-code-mcp` (this repo) | 3 control tools (`search`, `execute`, `auth_status`) | ~368 tokens | Yes, with minimal up-front overhead |
 
 The practical impact is that the agent starts with a much smaller tool schema, then asks the server for just-in-time endpoint discovery. This keeps prompt budget available for user intent, planning, and response quality instead of spending it on static endpoint metadata.
@@ -49,11 +49,11 @@ Agent                           MCP Server
 
 ## Benchmark Highlights
 
-Benchmarks were captured on February 22, 2026 on the same machine and account for both implementations. The numbers below compare this repo’s local HTTP MCP endpoint against `heroku mcp:start` over stdio.
+Benchmarks were captured on February 22, 2026 on the same machine and account for both implementations. The numbers below compare this repo’s local HTTP MCP endpoint against the official Heroku MCP server over stdio.
 
 ### Raw Comparison
 
-| Metric | `heroku-code-mcp` | `heroku mcp:start` | Delta |
+| Metric | `heroku-code-mcp` | official Heroku MCP | Delta |
 | --- | ---: | ---: | ---: |
 | Tool count | 3 | 37 | 91.9% lower |
 | Tool-list payload bytes | 1,469 | 25,500 | 94.2% lower |
@@ -62,36 +62,53 @@ Benchmarks were captured on February 22, 2026 on the same machine and account fo
 | `list_tools` avg | 4.3 ms | 10.3 ms | 2.4x faster |
 | Read op avg | 528.0 ms (`execute GET /apps`) | 9,697.4 ms (`list_apps`) | 18.4x faster |
 
-### Readable Comparison Graphs
+### Comparison Graphs
+
+These graphs use per-metric scales so each pair is directly readable. The previous combined charts compressed smaller values.
 
 ```mermaid
 xychart-beta
-    title "Context Reduction vs Official (higher is better)"
-    x-axis ["Tool count", "Tool-list tokens", "Tool-list bytes"]
-    y-axis "percent reduction" 0 --> 100
-    bar [91.9, 94.2, 94.2]
+    title "Tool Count (lower is better)"
+    x-axis ["heroku-code-mcp", "official"]
+    y-axis "tools" 0 --> 40
+    bar [3, 37]
 ```
 
 ```mermaid
 xychart-beta
-    title "Speedup vs Official (higher is better)"
-    x-axis ["Connect", "list_tools", "Read operation"]
-    y-axis "times faster" 0 --> 700
-    bar [687.0, 2.4, 18.4]
+    title "Tool-List Context Tokens (lower is better)"
+    x-axis ["heroku-code-mcp", "official"]
+    y-axis "approx tokens" 0 --> 6500
+    bar [368, 6375]
 ```
 
 ```mermaid
 xychart-beta
-    title "Absolute Latency (ms, lower is better)"
-    x-axis ["Connect", "list_tools", "Read operation"]
+    title "Connect Latency (ms, lower is better)"
+    x-axis ["heroku-code-mcp", "official"]
     y-axis "ms" 0 --> 10500
-    bar "heroku-code-mcp" [14.8, 4.3, 528.0]
-    bar "heroku mcp:start" [10168.7, 10.3, 9697.4]
+    bar [14.8, 10168.7]
+```
+
+```mermaid
+xychart-beta
+    title "list_tools Latency (ms, lower is better)"
+    x-axis ["heroku-code-mcp", "official"]
+    y-axis "ms" 0 --> 12
+    bar [4.3, 10.3]
+```
+
+```mermaid
+xychart-beta
+    title "Read Operation Latency (ms, lower is better)"
+    x-axis ["heroku-code-mcp", "official"]
+    y-axis "ms" 0 --> 10000
+    bar [528.0, 9697.4]
 ```
 
 ### How to Read These Results
 
-The strongest win is context footprint. A 3-tool interface materially lowers initial prompt overhead and reduces tool-choice branching for the model. The second win is connection and read-path latency under this benchmark harness. In measured runs, `heroku mcp:start` paid a much larger connect-time cost, and its measured read operation was substantially slower than `execute GET /apps` on this server.
+The strongest win is context footprint. A 3-tool interface materially lowers initial prompt overhead and reduces tool-choice branching for the model. The second win is connection and read-path latency under this benchmark harness. In measured runs, the official Heroku MCP paid a much larger connect-time cost, and its measured read operation was substantially slower than `execute GET /apps` on this server.
 
 This does not mean every endpoint in every environment will always have the same multiplier. It means the measured default experience in this setup favored the Code Mode control surface for both context economy and latency.
 
