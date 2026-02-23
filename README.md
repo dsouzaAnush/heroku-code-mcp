@@ -2,7 +2,9 @@
 
 > A token-efficient MCP server for the Heroku Platform API using a Code Mode pattern: `search` + `execute` + `auth_status`.
 
-This implementation is inspired by the Cloudflare Code Mode blog and Anthropic's programmatic tool-calling approach, where agents inspect available commands (for example via a `help` flow), select the right flags, and execute safely.
+Design references:
+- [Cloudflare Code Mode MCP](https://blog.cloudflare.com/code-mode-mcp/)
+- [Anthropic: Building Effective Agents (advanced tool use)](https://www.anthropic.com/engineering/building-effective-agents)
 
 ## Why This Is Useful
 
@@ -13,6 +15,16 @@ Most API-oriented MCP servers expose many endpoint-specific tools, which inflate
 - `auth_status` reports per-caller OAuth readiness.
 
 Result: lower context footprint, predictable agent behavior, and safer mutation controls.
+
+## Why Better Than Official Heroku MCP
+
+This implementation is better for agent-driven workflows because it compresses tool surface and shifts complexity server-side.
+
+- Context footprint: `3` tools vs `37` in `heroku mcp:start`.
+- Tool-list tokens: `~368` vs `~6,375` (~`94.2%` lower).
+- Speed: connect ~`687x` faster, read path ~`18.4x` faster in recorded benchmarks.
+- Reliability for agents: one deterministic `execute` contract is easier than choosing among many endpoint-specific tools.
+- Safety: write gating (`ALLOW_WRITES`, `dry_run`, `confirm_write_token`) is built in.
 
 ## Context Comparison
 
