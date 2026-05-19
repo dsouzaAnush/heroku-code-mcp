@@ -55,22 +55,22 @@
   "homepage": "https://github.com/dsouzaAnush/heroku-code-mcp#readme",
   "license": "ISC",
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.26.0",
-    "ajv": "^8.18.0",
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "ajv": "^8.20.0",
     "ajv-formats": "^3.0.1",
-    "dotenv": "^17.3.1",
+    "dotenv": "^17.4.2",
     "express": "^5.2.1",
     "pino": "^10.3.1",
     "pino-http": "^11.0.0",
-    "zod": "^4.3.6"
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@types/express": "^5.0.6",
-    "@types/node": "^25.3.0",
-    "@types/supertest": "^6.0.3",
+    "@types/node": "^25.9.1",
+    "@types/supertest": "^7.2.0",
     "supertest": "^7.2.2",
-    "tsx": "^4.21.0",
-    "typescript": "^5.9.3",
-    "vitest": "^4.0.18"
+    "tsx": "^4.22.3",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.6"
   }
 }
