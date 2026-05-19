@@ -34,7 +34,7 @@ jobs:
     runs-on: ubuntu-latest
     if: github.repository == 'dsouzaAnush/heroku-code-mcp'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
