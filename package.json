@@ -1,24 +1,58 @@
 {
-  "name": "heroku-code-mode-mcp",
+  "name": "heroku-code-mcp",
   "version": "0.1.0",
   "description": "Heroku MCP server with Cloudflare-style search and execute tools",
   "type": "module",
   "main": "dist/index.js",
+  "bin": {
+    "heroku-code-mcp": "dist/index.js"
+  },
+  "mcpName": "io.github.dsouzaanush/heroku-code-mcp",
+  "files": [
+    "assets",
+    "dist/*.js",
+    "dist/**/*.js",
+    "scripts",
+    ".env.example",
+    "BENCHMARKS.md",
+    "LICENSE",
+    "README.md",
+    "REFERENCES.md",
+    "server.json"
+  ],
   "scripts": {
     "dev": "tsx src/index.ts",
     "build": "tsc -p tsconfig.json",
     "start": "node dist/index.js",
     "test": "vitest run",
     "test:watch": "vitest",
+    "prepare": "npm run build",
+    "prepack": "npm run build",
+    "validate:server": "node scripts/validate-server-json.mjs",
+    "publish:dry-run": "npm pack --dry-run",
+    "build:mcpb": "python3 scripts/build-claude-desktop-mcpb.py",
     "seed:token": "node scripts/seed-token-from-heroku-cli.mjs",
     "smoke:mcp": "node scripts/mcp-smoke-test.mjs"
   },
   "keywords": [
     "mcp",
     "heroku",
-    "oauth"
+    "oauth",
+    "platform-api",
+    "claude",
+    "cursor",
+    "codex",
+    "openai"
   ],
-  "author": "",
+  "author": "Anush Dsouza",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dsouzaAnush/heroku-code-mcp.git"
+  },
+  "bugs": {
+    "url": "https://github.com/dsouzaAnush/heroku-code-mcp/issues"
+  },
+  "homepage": "https://github.com/dsouzaAnush/heroku-code-mcp#readme",
   "license": "ISC",
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.26.0",

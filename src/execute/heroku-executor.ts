@@ -119,10 +119,11 @@ export class HerokuExecutor {
 
     const pathParams = input.path_params ?? {};
     const queryParams = input.query_params ?? {};
+    const body = this.normalizeBody(input.body);
 
     this.validatePathParams(operation, pathParams);
     this.validateQueryParams(queryParams);
-    this.validateBody(operation, input.body);
+    this.validateBody(operation, body);
 
     const path = this.renderPath(operation, pathParams);
     const url = new URL(path, this.deps.config.herokuApiBaseUrl);
@@ -149,7 +150,7 @@ export class HerokuExecutor {
           operationId: operation.operationId,
           pathParams,
           queryParams,
-          body: input.body ?? null
+          body: body ?? null
         });
 
         dryRunBody = {
@@ -186,7 +187,7 @@ export class HerokuExecutor {
         operationId: operation.operationId,
         pathParams,
         queryParams,
-        body: input.body ?? null
+        body: body ?? null
       });
 
       if (input.confirm_write_token !== expected) {
@@ -225,9 +226,9 @@ export class HerokuExecutor {
       headers
     };
 
-    if (input.body !== undefined) {
+    if (body !== undefined) {
       (headers as Record<string, string>)["Content-Type"] = "application/json";
-      init.body = JSON.stringify(input.body);
+      init.body = JSON.stringify(body);
     }
 
     const idempotent = ["GET", "HEAD"].includes(operation.method);
@@ -466,6 +467,27 @@ export class HerokuExecutor {
           400
         );
       }
+    }
+  }
+
+  private normalizeBody(body: unknown): unknown {
+    if (typeof body !== "string") {
+      return body;
+    }
+
+    const trimmed = body.trim();
+    if (trimmed.length === 0) {
+      return undefined;
+    }
+
+    try {
+      return JSON.parse(trimmed) as unknown;
+    } catch {
+      throw new ToolError(
+        "Request body must be a JSON object or a valid JSON string.",
+        "VALIDATION_ERROR",
+        400
+      );
     }
   }
 

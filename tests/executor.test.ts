@@ -135,6 +135,94 @@ describe("HerokuExecutor", () => {
     expect((result.body as Record<string, unknown>).confirm_write_token).toBeTruthy();
   });
 
+  test("normalizes JSON-string bodies before validation, signing, and fetch", async () => {
+    const operation: HerokuOperation = {
+      operationId: "POST /apps",
+      method: "POST",
+      pathTemplate: "/apps",
+      rawHref: "/apps",
+      definitionName: "app",
+      pathParams: [],
+      requiredParams: [],
+      isMutating: true,
+      searchText: "",
+      requestSchema: {
+        type: ["object"],
+        properties: {
+          region: { type: ["string"] }
+        }
+      }
+    };
+
+    let requestBody: string | undefined;
+    const fetchFn: typeof fetch = async (_url, init) => {
+      requestBody = init?.body as string | undefined;
+      return new Response(JSON.stringify({ name: "demo-app" }), {
+        status: 201,
+        headers: {
+          "content-type": "application/json",
+          "request-id": "req-write"
+        }
+      });
+    };
+
+    const executor = makeExecutor({
+      operation,
+      rootSchema: { definitions: {} },
+      allowWrites: true,
+      fetchFn
+    });
+
+    const dryRun = await executor.execute(
+      {
+        operation_id: operation.operationId,
+        dry_run: true,
+        body: "{\"region\":\"us\"}"
+      },
+      "u1"
+    );
+    const token = (dryRun.body as Record<string, unknown>).confirm_write_token as string;
+
+    const result = await executor.execute(
+      {
+        operation_id: operation.operationId,
+        body: "{\"region\":\"us\"}",
+        confirm_write_token: token
+      },
+      "u1"
+    );
+
+    expect(result.status).toBe(201);
+    expect(requestBody).toBe("{\"region\":\"us\"}");
+  });
+
+  test("rejects invalid JSON-string bodies", async () => {
+    const operation: HerokuOperation = {
+      operationId: "POST /apps",
+      method: "POST",
+      pathTemplate: "/apps",
+      rawHref: "/apps",
+      definitionName: "app",
+      pathParams: [],
+      requiredParams: [],
+      isMutating: true,
+      searchText: ""
+    };
+
+    const executor = makeExecutor({ operation, rootSchema: { definitions: {} } });
+
+    await expect(
+      executor.execute(
+        {
+          operation_id: operation.operationId,
+          dry_run: true,
+          body: "{region:us}"
+        },
+        "u1"
+      )
+    ).rejects.toMatchObject({ code: "VALIDATION_ERROR" });
+  });
+
   test("retries idempotent read calls", async () => {
     const operation: HerokuOperation = {
       operationId: "GET /apps",

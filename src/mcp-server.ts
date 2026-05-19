@@ -62,7 +62,7 @@ function formatError(error: unknown): string {
 export function createHerokuMcpServer(deps: ServerDeps): McpServer {
   const server = new McpServer(
     {
-      name: "heroku-code-mode-mcp",
+      name: "heroku-code-mcp",
       version: "0.1.0"
     },
     {
@@ -100,14 +100,20 @@ export function createHerokuMcpServer(deps: ServerDeps): McpServer {
     {
       title: "Execute Heroku API Operation",
       description:
-        "Validates and executes Heroku Platform API operations by operation_id.",
+        "Validates and executes Heroku Platform API operations by operation_id. For request bodies, pass a JSON object; JSON-string bodies are accepted for Claude Desktop compatibility.",
       inputSchema: {
         operation_id: z.string().min(1),
         path_params: z.record(z.string(), z.string()).optional(),
         query_params: z
           .record(z.string(), z.union([z.string(), z.number(), z.boolean()]))
           .optional(),
-        body: z.unknown().optional(),
+        body: z
+          .union([
+            z.record(z.string(), z.unknown()),
+            z.array(z.unknown()),
+            z.string()
+          ])
+          .optional(),
         dry_run: z.boolean().optional(),
         confirm_write_token: z.string().optional()
       }

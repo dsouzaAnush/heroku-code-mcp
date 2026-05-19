@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 import { randomUUID } from "node:crypto";
 import pinoHttpImport from "pino-http";
 import { createMcpExpressApp } from "@modelcontextprotocol/sdk/server/express.js";
@@ -85,7 +86,7 @@ async function main(): Promise<void> {
   app.use(pinoHttp({ logger }));
 
   app.get("/healthz", (_req, res) => {
-    res.json({ ok: true, service: "heroku-code-mode-mcp" });
+    res.json({ ok: true, service: "heroku-code-mcp" });
   });
 
   app.get("/oauth/start", (req, res) => {
