@@ -18,6 +18,10 @@ HOST="${HOST:-127.0.0.1}"
 PORT="${PORT:-3333}"
 USER_ID="${USER_ID:-default}"
 LOG_FILE="${HOME}/Library/Logs/Claude/heroku-code-mcp-http.log"
+if [[ -z "${HEROKU_CODE_MCP_VERSION:-}" && -f "${DEFAULT_REPO_DIR}/package.json" ]]; then
+  HEROKU_CODE_MCP_VERSION="$(node -p "require('${DEFAULT_REPO_DIR}/package.json').version" 2>/dev/null || true)"
+fi
+HEROKU_CODE_MCP_VERSION="${HEROKU_CODE_MCP_VERSION:-0.1.0}"
 
 export PATH="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:${PATH:-}"
 
@@ -47,7 +51,7 @@ if ! curl -fsS "http://${HOST}:${PORT}/healthz" >/dev/null 2>&1; then
       cd "${REPO_DIR}"
       START_COMMAND=(node dist/index.js)
     else
-      NPX_PACKAGE="${HEROKU_CODE_MCP_NPX_PACKAGE:-github:dsouzaAnush/heroku-code-mcp#v0.1.0}"
+      NPX_PACKAGE="${HEROKU_CODE_MCP_NPX_PACKAGE:-github:dsouzaAnush/heroku-code-mcp#v${HEROKU_CODE_MCP_VERSION}}"
       START_COMMAND=(npx -y "${NPX_PACKAGE}")
     fi
 

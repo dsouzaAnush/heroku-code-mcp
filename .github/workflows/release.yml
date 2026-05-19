@@ -1,0 +1,149 @@
+name: release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to release, without the leading v. Defaults to package.json."
+        required: false
+        type: string
+      publish_mcp_registry:
+        description: "Publish dist/server.json to the official MCP Registry."
+        required: true
+        default: false
+        type: boolean
+      publish_npm:
+        description: "Publish to npm with trusted publishing. Requires npmjs.com trusted publisher setup."
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: write
+  id-token: write
+
+concurrency:
+  group: release-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    if: github.repository == 'dsouzaAnush/heroku-code-mcp'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Resolve release version
+        run: |
+          set -euo pipefail
+          PACKAGE_VERSION="$(node -p "require('./package.json').version")"
+
+          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+            RELEASE_TAG="${GITHUB_REF_NAME}"
+            VERSION="${RELEASE_TAG#v}"
+          else
+            VERSION="${{ github.event.inputs.version }}"
+            if [[ -z "${VERSION}" ]]; then
+              VERSION="${PACKAGE_VERSION}"
+            fi
+            RELEASE_TAG="v${VERSION}"
+          fi
+
+          if [[ "${VERSION}" != "${PACKAGE_VERSION}" ]]; then
+            echo "::error::Release version ${VERSION} does not match package.json version ${PACKAGE_VERSION}."
+            exit 1
+          fi
+
+          echo "VERSION=${VERSION}" >> "${GITHUB_ENV}"
+          echo "RELEASE_TAG=${RELEASE_TAG}" >> "${GITHUB_ENV}"
+
+      - run: npm ci
+      - run: npm run build
+      - run: npm test
+      - run: npm run validate:server
+      - run: npm run publish:dry-run
+      - run: npm run build:mcpb
+
+      - name: Pack npm artifact
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          npm pack --pack-destination dist
+
+      - name: Prepare MCP Registry metadata
+        run: |
+          set -euo pipefail
+          MCPB_PATH="dist/mcpb/heroku-code-mcp.mcpb"
+          MCPB_SHA256="$(shasum -a 256 "${MCPB_PATH}" | awk '{print $1}')"
+          export MCPB_SHA256
+          echo "MCPB_SHA256=${MCPB_SHA256}" >> "${GITHUB_ENV}"
+
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+
+          const version = process.env.VERSION;
+          const releaseTag = process.env.RELEASE_TAG;
+          const sha = process.env.MCPB_SHA256;
+          const server = JSON.parse(fs.readFileSync('server.json', 'utf8'));
+
+          server.version = version;
+          server.packages[0].identifier =
+            `https://github.com/dsouzaAnush/heroku-code-mcp/releases/download/${releaseTag}/heroku-code-mcp.mcpb`;
+          server.packages[0].version = version;
+          server.packages[0].fileSha256 = sha;
+
+          fs.writeFileSync('dist/server.json', JSON.stringify(server, null, 2) + '\n');
+          NODE
+
+      - name: Install mcp-publisher
+        run: |
+          curl -L "https://github.com/modelcontextprotocol/registry/releases/latest/download/mcp-publisher_$(uname -s | tr '[:upper:]' '[:lower:]')_$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/').tar.gz" | tar xz mcp-publisher
+
+      - name: Validate MCP Registry metadata
+        run: ./mcp-publisher validate dist/server.json
+
+      - name: Create or update GitHub release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          NPM_TARBALL="$(ls dist/*.tgz | head -n 1)"
+          RELEASE_NOTES="Heroku Code MCP ${VERSION}
+
+          Assets:
+          - heroku-code-mcp.mcpb for Claude Desktop
+          - server.json for the MCP Registry submission
+          - ${NPM_TARBALL##*/} for npm package inspection"
+
+          if gh release view "${RELEASE_TAG}" >/dev/null 2>&1; then
+            gh release edit "${RELEASE_TAG}" --title "Heroku Code MCP ${VERSION}" --notes "${RELEASE_NOTES}"
+          else
+            gh release create "${RELEASE_TAG}" --title "Heroku Code MCP ${VERSION}" --notes "${RELEASE_NOTES}"
+          fi
+
+          gh release upload "${RELEASE_TAG}" \
+            dist/mcpb/heroku-code-mcp.mcpb \
+            dist/server.json \
+            "${NPM_TARBALL}" \
+            --clobber
+
+      - name: Publish npm package
+        if: github.event_name == 'workflow_dispatch' && github.event.inputs.publish_npm == 'true'
+        run: npm publish --access public
+
+      - name: Publish to MCP Registry
+        if: github.event_name == 'push' || github.event.inputs.publish_mcp_registry == 'true'
+        run: |
+          ./mcp-publisher login github-oidc
+          ./mcp-publisher publish dist/server.json

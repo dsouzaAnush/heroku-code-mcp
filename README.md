@@ -400,7 +400,13 @@ Key env vars:
 
 Full example: `.env.example`
 
-## Publish
+## CI/CD and Publish
+
+This repo uses free GitHub Actions for public repositories:
+
+- `validate.yml` runs build, tests, `server.json` validation, and npm pack dry-run on PRs and pushes to `main`.
+- `release.yml` runs on `v*` tags, builds the Claude Desktop `.mcpb`, creates or updates the GitHub Release, uploads `server.json`, and publishes the MCP Registry entry through GitHub OIDC.
+- Dependabot checks npm and GitHub Actions dependencies weekly.
 
 Validate the package and MCP Registry metadata:
 
@@ -417,7 +423,14 @@ Publish the npm package:
 npm publish --access public
 ```
 
-Publish the MCP Registry metadata. The checked-in `server.json` points at the GitHub Release `.mcpb` artifact, so npm publication is optional for the current registry entry:
+For CI-based npm publishing, configure npm trusted publishing for:
+
+- Owner/repo: `dsouzaAnush/heroku-code-mcp`
+- Workflow filename: `release.yml`
+
+Then run the `release` workflow manually with `publish_npm=true`, or keep npm manual until the package name is reserved.
+
+Publish the MCP Registry metadata locally when needed. The checked-in `server.json` points at the GitHub Release `.mcpb` artifact, so npm publication is optional for the current registry entry:
 
 ```bash
 mcp-publisher login github
@@ -432,6 +445,8 @@ For Claude Desktop distribution, build the `.mcpb` bundle and attach it to a Git
 npm run build:mcpb
 gh release create v0.1.0 dist/mcpb/heroku-code-mcp.mcpb
 ```
+
+The release workflow does the same packaging automatically for future `v*` tags and updates the generated release `server.json` with the tag, version, and `.mcpb` SHA-256 before publishing to the MCP Registry.
 
 For OpenAI and ChatGPT surfaces, host this as a remote MCP server or package it as part of a ChatGPT app submission. The standalone Codex plugin is distributed today from GitHub through the companion plugin repo rather than a public self-serve OpenAI plugin marketplace.
 

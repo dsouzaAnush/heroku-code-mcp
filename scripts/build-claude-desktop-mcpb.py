@@ -18,18 +18,24 @@ HEROKU_LOGO = ROOT / "assets" / "heroku-logo.png"
 WRAPPER = ROOT / "scripts" / "claude-desktop-heroku-mcp.sh"
 
 
+def package_version() -> str:
+    payload = json.loads((ROOT / "package.json").read_text())
+    return payload["version"]
+
+
 def build_icon(destination: Path) -> None:
     destination.parent.mkdir(parents=True, exist_ok=True)
     shutil.copy2(HEROKU_LOGO, destination)
 
 
 def write_manifest(destination: Path) -> None:
+    version = package_version()
     manifest = {
         "$schema": "https://raw.githubusercontent.com/anthropics/mcpb/main/schemas/mcpb-manifest-v0.3.schema.json",
         "manifest_version": "0.3",
         "name": "heroku-code-mcp",
         "display_name": "Heroku Code MCP",
-        "version": "0.1.0",
+        "version": version,
         "description": "Use Heroku Platform API operations from Claude Desktop through a compact MCP tool surface.",
         "long_description": (
             "Heroku Code MCP gives Claude Desktop three live Heroku tools: "
@@ -59,7 +65,8 @@ def write_manifest(destination: Path) -> None:
                 "command": "${__dirname}/server/claude-desktop-heroku-mcp.sh",
                 "args": [],
                 "env": {
-                    "HEROKU_CODE_MCP_ENV_FILE": "${HOME}/Library/Application Support/Claude/heroku-code-mcp/env.sh"
+                    "HEROKU_CODE_MCP_ENV_FILE": "${HOME}/Library/Application Support/Claude/heroku-code-mcp/env.sh",
+                    "HEROKU_CODE_MCP_VERSION": version
                 }
             }
         },
