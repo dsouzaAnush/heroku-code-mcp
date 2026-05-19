@@ -7,7 +7,7 @@
   "bin": {
     "heroku-code-mcp": "dist/index.js"
   },
-  "mcpName": "io.github.dsouzaanush/heroku-code-mcp",
+  "mcpName": "io.github.dsouzaAnush/heroku-code-mcp",
   "files": [
     "assets",
     "dist/*.js",

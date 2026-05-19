@@ -1,6 +1,6 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
-  "name": "io.github.dsouzaanush/heroku-code-mcp",
+  "name": "io.github.dsouzaAnush/heroku-code-mcp",
   "title": "Heroku Code MCP",
   "description": "Search and execute Heroku Platform API operations",
   "version": "0.1.0",
@@ -20,68 +20,6 @@
     }
   ],
   "packages": [
-    {
-      "registryType": "npm",
-      "identifier": "heroku-code-mcp",
-      "version": "0.1.0",
-      "environmentVariables": [
-        {
-          "name": "HOST",
-          "value": "127.0.0.1",
-          "description": "Bind the local MCP HTTP server to localhost."
-        },
-        {
-          "name": "PORT",
-          "default": "3333",
-          "format": "number",
-          "description": "Local port for the streamable HTTP MCP endpoint."
-        },
-        {
-          "name": "USER_ID",
-          "default": "default",
-          "description": "User id sent to the MCP server in the x-user-id header."
-        },
-        {
-          "name": "TOKEN_STORE_PATH",
-          "format": "filepath",
-          "isRequired": true,
-          "description": "Path to the encrypted Heroku token store."
-        },
-        {
-          "name": "TOKEN_ENCRYPTION_KEY_BASE64",
-          "isRequired": true,
-          "isSecret": true,
-          "description": "Base64-encoded 32-byte key for the token store."
-        },
-        {
-          "name": "ALLOW_WRITES",
-          "default": "false",
-          "choices": [
-            "false",
-            "true"
-          ],
-          "format": "boolean",
-          "description": "Allow confirmed mutating Heroku API operations."
-        },
-        {
-          "name": "WRITE_CONFIRMATION_SECRET",
-          "isRequired": true,
-          "isSecret": true,
-          "description": "Secret used to sign dry-run write confirmation tokens."
-        }
-      ],
-      "transport": {
-        "type": "streamable-http",
-        "url": "http://127.0.0.1:{PORT}/mcp",
-        "headers": [
-          {
-            "name": "x-user-id",
-            "value": "{USER_ID}",
-            "description": "Selects the Heroku token store entry for this client session."
-          }
-        ]
-      }
-    },
     {
       "registryType": "mcpb",
       "identifier": "https://github.com/dsouzaAnush/heroku-code-mcp/releases/download/v0.1.0/heroku-code-mcp.mcpb",

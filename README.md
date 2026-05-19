@@ -8,7 +8,7 @@
 
 > A token-efficient MCP server for the Heroku Platform API using a Code Mode pattern: `search` + `execute` + `auth_status`.
 
-<!-- mcp-name: io.github.dsouzaanush/heroku-code-mcp -->
+<!-- mcp-name: io.github.dsouzaAnush/heroku-code-mcp -->
 
 Pair this MCP server with the companion [Heroku Skills](https://github.com/dsouzaAnush/heroku-skills) repository to give Claude both a compact Heroku API tool surface and safe Heroku operating workflows.
 
@@ -417,12 +417,14 @@ Publish the npm package:
 npm publish --access public
 ```
 
-Publish to the MCP Registry after either the npm package is public or the GitHub Release `.mcpb` asset is available:
+Publish the MCP Registry metadata. The checked-in `server.json` points at the GitHub Release `.mcpb` artifact, so npm publication is optional for the current registry entry:
 
 ```bash
 mcp-publisher login github
-mcp-publisher publish
+mcp-publisher publish server.json
 ```
+
+The current MCP Registry name is `io.github.dsouzaAnush/heroku-code-mcp`.
 
 For Claude Desktop distribution, build the `.mcpb` bundle and attach it to a GitHub release:
 
