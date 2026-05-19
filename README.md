@@ -1,7 +1,5 @@
 <p align="center">
   <img src="assets/heroku-logo-dark-rgb.svg" alt="Heroku" height="44" />
-  <span>&nbsp;&nbsp;&nbsp;</span>
-  <img src="assets/claude-ai-logo.svg" alt="Claude" height="44" />
 </p>
 
 # Heroku Code MCP
@@ -10,7 +8,7 @@
 
 <!-- mcp-name: io.github.dsouzaAnush/heroku-code-mcp -->
 
-Pair this MCP server with the companion [Heroku Skills](https://github.com/dsouzaAnush/heroku-skills) repository to give Claude both a compact Heroku API tool surface and safe Heroku operating workflows.
+Pair this MCP server with the companion [Heroku Skills](https://github.com/dsouzaAnush/heroku-skills) repository to give AI coding agents both a compact Heroku API tool surface and safe Heroku operating workflows.
 
 Design references:
 - [Cloudflare Code Mode MCP](https://blog.cloudflare.com/code-mode-mcp/)
@@ -167,19 +165,19 @@ npx -y github:dsouzaAnush/heroku-code-mcp
 
 Set `ALLOW_WRITES=true` only when the client should be able to complete mutating Heroku API calls after a dry-run confirmation token.
 
-## Install in Claude
+## Install in Agent Clients
 
-Heroku Code MCP is the tool layer. It gives Claude three control tools:
+Heroku Code MCP is the tool layer. It exposes three control tools to agent clients:
 
 - `auth_status`: check whether the current caller is authenticated with Heroku
 - `search`: map intent such as "list apps" or "inspect config vars" to Heroku Platform API operations
 - `execute`: validate and run the selected operation
 
-Use [Heroku Skills](https://github.com/dsouzaAnush/heroku-skills) alongside this server when you want Claude to follow Heroku-specific workflows, guardrails, and product guidance before calling tools.
+Use [Heroku Skills](https://github.com/dsouzaAnush/heroku-skills) alongside this server when you want agents to follow Heroku-specific workflows, guardrails, and product guidance before calling tools.
+
+### <img src="https://claude.com/favicon.ico" alt="Claude Code" height="22" /> Claude Code
 
 Claude Code MCP setup follows Anthropic's [Claude Code MCP documentation](https://docs.anthropic.com/en/docs/claude-code/mcp).
-
-### Claude Code MCP
 
 Add the running local MCP server directly:
 
@@ -206,7 +204,7 @@ claude plugin install heroku@heroku-plugin
 claude plugin enable heroku@heroku-plugin
 ```
 
-### Claude Desktop
+### <img src="https://claude.com/favicon.ico" alt="Claude Desktop" height="22" /> Claude Desktop
 
 Claude Desktop can use this server through MCP configuration. If your Claude Desktop build supports HTTP MCP servers directly, add:
 
@@ -247,7 +245,7 @@ npm run build:mcpb
 
 The bundle is written to `dist/mcpb/heroku-code-mcp.mcpb`. Publish it as a GitHub release asset. The bundle wrapper runs a local checkout when `HEROKU_CODE_MCP_ROOT` is set; otherwise it falls back to `npx -y github:dsouzaAnush/heroku-code-mcp#v0.1.0`. Set `HEROKU_CODE_MCP_NPX_PACKAGE=heroku-code-mcp` after npm publication if you want the npm package instead.
 
-### Claude cowork / remote code sessions
+### Remote code sessions
 
 Claude cowork and other remote code-session surfaces should use the same two-part pattern:
 
@@ -256,7 +254,7 @@ Claude cowork and other remote code-session surfaces should use the same two-par
 
 For a local cowork session that can reach your laptop, keep the server bound to `127.0.0.1` and use the local Claude Code plugin. For a remote cowork environment, run this MCP server inside that environment or expose it through an authenticated internal endpoint. Do not expose a locally seeded Heroku token store on a public network.
 
-## Install in Codex
+### <img src="https://upload.wikimedia.org/wikipedia/commons/9/97/OpenAI_logo_2025.svg" alt="OpenAI Codex" height="22" /> Codex
 
 Codex uses the companion [Heroku Plugin](https://github.com/dsouzaAnush/heroku-plugin) for skills and optional `.mcp.json` wiring:
 
@@ -273,7 +271,7 @@ enabled = true
 
 Run `heroku-code-mcp` on `http://127.0.0.1:3333/mcp` when you want live Heroku API tools available through the plugin's `.mcp.json`.
 
-## Install in Cursor
+### <img src="https://cursor.com/favicon.ico" alt="Cursor" height="22" /> Cursor
 
 Cursor can use the plugin skills and the MCP server separately.
 
@@ -281,7 +279,7 @@ Load the companion plugin from a checkout:
 
 ```bash
 git clone https://github.com/dsouzaAnush/heroku-plugin.git
-cursor agent --plugin-dir "$(pwd)/heroku-plugin"
+cursor agent --plugin-dir heroku-plugin
 ```
 
 Add the MCP server to `~/.cursor/mcp.json` or a project-local `.cursor/mcp.json`:
@@ -452,7 +450,7 @@ For OpenAI and ChatGPT surfaces, host this as a remote MCP server or package it 
 
 ## Brand assets
 
-This repo includes the official Heroku wordmark and mark under [`assets`](assets), plus the Claude logo used in the Claude-facing setup examples. Use the Heroku assets according to Heroku's brand guidance:
+This repo includes the official Heroku wordmark and mark under [`assets`](assets). Use the Heroku assets according to Heroku's brand guidance:
 
 - [Heroku Brand Guidelines](https://devcenter.heroku.com/articles/heroku-brand-guidelines)
 
