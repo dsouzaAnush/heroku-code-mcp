@@ -417,7 +417,7 @@ Publish the npm package:
 npm publish --access public
 ```
 
-Publish to the MCP Registry after the npm package is public:
+Publish to the MCP Registry after either the npm package is public or the GitHub Release `.mcpb` asset is available:
 
 ```bash
 mcp-publisher login github

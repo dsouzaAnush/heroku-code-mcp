@@ -81,6 +81,15 @@
           }
         ]
       }
+    },
+    {
+      "registryType": "mcpb",
+      "identifier": "https://github.com/dsouzaAnush/heroku-code-mcp/releases/download/v0.1.0/heroku-code-mcp.mcpb",
+      "version": "0.1.0",
+      "fileSha256": "bad1cea8320a526719f240d4d0f39881e223cebc46ba22b5808468b9c7bb8685",
+      "transport": {
+        "type": "stdio"
+      }
     }
   ]
 }
