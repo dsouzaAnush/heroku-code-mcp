@@ -1,11 +1,13 @@
 #!/usr/bin/env node
 import { randomUUID } from "node:crypto";
 import pinoHttpImport from "pino-http";
+import type { RequestHandler } from "express";
 import { createMcpExpressApp } from "@modelcontextprotocol/sdk/server/express.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { appConfig } from "./config.js";
 import { createLogger } from "./logger.js";
+import { isMcpRequestAuthorized } from "./auth/mcp-access.js";
 import { EncryptedTokenStore } from "./auth/token-store.js";
 import { HerokuOAuthService } from "./auth/oauth-service.js";
 import { HerokuSchemaService } from "./schema/heroku-schema-service.js";
@@ -16,6 +18,15 @@ import { createHerokuMcpServer } from "./mcp-server.js";
 interface SessionRecord {
   transport: StreamableHTTPServerTransport;
   server: McpServer;
+}
+
+function getLocalBaseUrl(): string {
+  const displayHost = appConfig.host === "0.0.0.0" ? "127.0.0.1" : appConfig.host;
+  return `http://${displayHost}:${appConfig.port}`;
+}
+
+function serviceUrl(path: string): string {
+  return new URL(path, appConfig.publicBaseUrl ?? getLocalBaseUrl()).toString();
 }
 
 function isInitializeRequest(body: unknown): boolean {
@@ -85,11 +96,40 @@ async function main(): Promise<void> {
   const app = createMcpExpressApp({ host: appConfig.host });
   app.use(pinoHttp({ logger }));
 
+  const requireMcpAccess: RequestHandler = (req, res, next) => {
+    if (
+      isMcpRequestAuthorized(req.headers, {
+        authToken: appConfig.mcpAuthToken,
+        authHeader: appConfig.mcpAuthHeader
+      })
+    ) {
+      next();
+      return;
+    }
+
+    res.status(401).json({ error: "Unauthorized" });
+  };
+
+  app.get("/", (_req, res) => {
+    res.json({
+      ok: true,
+      service: "heroku-code-mcp",
+      transport: "streamable-http",
+      auth_required: Boolean(appConfig.mcpAuthToken),
+      endpoints: {
+        mcp: serviceUrl("/mcp"),
+        healthz: serviceUrl("/healthz"),
+        oauth_start: serviceUrl("/oauth/start"),
+        oauth_callback: appConfig.oauthRedirectUri
+      }
+    });
+  });
+
   app.get("/healthz", (_req, res) => {
     res.json({ ok: true, service: "heroku-code-mcp" });
   });
 
-  app.get("/oauth/start", (req, res) => {
+  app.get("/oauth/start", requireMcpAccess, (req, res) => {
     try {
       const userId = String(req.query.user_id ?? "default");
       const mode = String(req.query.mode ?? "redirect");
@@ -125,7 +165,7 @@ async function main(): Promise<void> {
     }
   });
 
-  app.get("/oauth/status", async (req, res) => {
+  app.get("/oauth/status", requireMcpAccess, async (req, res) => {
     const userId = String(req.query.user_id ?? "default");
     const status = await oauthService.getAuthStatus(userId);
     res.json({ user_id: userId, ...status });
@@ -142,7 +182,7 @@ async function main(): Promise<void> {
       executor
     });
 
-  app.post("/mcp", async (req, res) => {
+  app.post("/mcp", requireMcpAccess, async (req, res) => {
     const sessionId = req.headers["mcp-session-id"];
 
     try {
@@ -217,7 +257,7 @@ async function main(): Promise<void> {
     }
   });
 
-  app.get("/mcp", async (req, res) => {
+  app.get("/mcp", requireMcpAccess, async (req, res) => {
     const sessionId = req.headers["mcp-session-id"];
 
     if (typeof sessionId !== "string") {
@@ -234,7 +274,7 @@ async function main(): Promise<void> {
     await existing.transport.handleRequest(req, res);
   });
 
-  app.delete("/mcp", async (req, res) => {
+  app.delete("/mcp", requireMcpAccess, async (req, res) => {
     const sessionId = req.headers["mcp-session-id"];
 
     if (typeof sessionId !== "string") {
@@ -256,7 +296,7 @@ async function main(): Promise<void> {
       {
         host: appConfig.host,
         port: appConfig.port,
-        mcpEndpoint: `http://${appConfig.host}:${appConfig.port}/mcp`
+        mcpEndpoint: serviceUrl("/mcp")
       },
       "Heroku Code Mode MCP server started"
     );

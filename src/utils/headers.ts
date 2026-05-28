@@ -20,10 +20,16 @@ export function getHeaderValue(
     if (typeof direct === "string") {
       return direct;
     }
+    if (Array.isArray(direct) && typeof direct[0] === "string") {
+      return direct[0];
+    }
 
     const lower = asRecord[headerName.toLowerCase()];
     if (typeof lower === "string") {
       return lower;
+    }
+    if (Array.isArray(lower) && typeof lower[0] === "string") {
+      return lower[0];
     }
   }
 

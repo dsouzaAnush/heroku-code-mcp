@@ -3,10 +3,54 @@ import { z } from "zod";
 
 loadDotEnv();
 
+const optionalString = z.preprocess(
+  (value) => (value === "" ? undefined : value),
+  z.string().optional()
+);
+const optionalUrl = z.preprocess(
+  (value) => (value === "" ? undefined : value),
+  z.url().optional()
+);
+
+export function normalizePublicBaseUrl(
+  publicBaseUrl?: string,
+  herokuAppName?: string
+): string | undefined {
+  if (publicBaseUrl) {
+    return publicBaseUrl.replace(/\/+$/, "");
+  }
+
+  if (herokuAppName) {
+    return `https://${herokuAppName}.herokuapp.com`;
+  }
+
+  return undefined;
+}
+
+export function resolveOAuthRedirectUri(input: {
+  explicitRedirectUri?: string;
+  publicBaseUrl?: string;
+  port: number;
+}): string {
+  if (input.explicitRedirectUri) {
+    return input.explicitRedirectUri;
+  }
+
+  if (input.publicBaseUrl) {
+    return new URL("/oauth/callback", input.publicBaseUrl).toString();
+  }
+
+  return `http://localhost:${input.port}/oauth/callback`;
+}
+
 const envSchema = z.object({
   PORT: z.coerce.number().int().positive().default(3000),
   HOST: z.string().default("0.0.0.0"),
   LOG_LEVEL: z.string().default("info"),
+  PUBLIC_BASE_URL: optionalUrl,
+  HEROKU_APP_NAME: optionalString,
+  MCP_AUTH_TOKEN: optionalString,
+  MCP_AUTH_HEADER: z.string().default("authorization"),
 
   HEROKU_SCHEMA_URL: z.url().default("https://api.heroku.com/schema"),
   HEROKU_API_BASE_URL: z.url().default("https://api.heroku.com"),
@@ -30,10 +74,10 @@ const envSchema = z.object({
   WRITE_CONFIRMATION_SECRET: z.string().min(8).default("local-dev-secret"),
 
   TOKEN_STORE_PATH: z.string().default("./data/tokens.json"),
-  TOKEN_ENCRYPTION_KEY_BASE64: z.string().optional(),
+  TOKEN_ENCRYPTION_KEY_BASE64: optionalString,
 
-  HEROKU_OAUTH_CLIENT_ID: z.string().optional(),
-  HEROKU_OAUTH_CLIENT_SECRET: z.string().optional(),
+  HEROKU_OAUTH_CLIENT_ID: optionalString,
+  HEROKU_OAUTH_CLIENT_SECRET: optionalString,
   HEROKU_OAUTH_SCOPE: z.string().default("global"),
   HEROKU_OAUTH_AUTHORIZE_URL: z
     .url()
@@ -41,17 +85,22 @@ const envSchema = z.object({
   HEROKU_OAUTH_TOKEN_URL: z
     .url()
     .default("https://id.heroku.com/oauth/token"),
-  HEROKU_OAUTH_REDIRECT_URI: z
-    .url()
-    .default("http://localhost:3000/oauth/callback")
+  HEROKU_OAUTH_REDIRECT_URI: optionalUrl
 });
 
 const parsed = envSchema.parse(process.env);
+const publicBaseUrl = normalizePublicBaseUrl(
+  parsed.PUBLIC_BASE_URL,
+  parsed.HEROKU_APP_NAME
+);
 
 export const appConfig = {
   port: parsed.PORT,
   host: parsed.HOST,
   logLevel: parsed.LOG_LEVEL,
+  publicBaseUrl,
+  mcpAuthToken: parsed.MCP_AUTH_TOKEN,
+  mcpAuthHeader: parsed.MCP_AUTH_HEADER.toLowerCase(),
 
   herokuSchemaUrl: parsed.HEROKU_SCHEMA_URL,
   herokuApiBaseUrl: parsed.HEROKU_API_BASE_URL,
@@ -77,7 +126,11 @@ export const appConfig = {
   oauthScope: parsed.HEROKU_OAUTH_SCOPE,
   oauthAuthorizeUrl: parsed.HEROKU_OAUTH_AUTHORIZE_URL,
   oauthTokenUrl: parsed.HEROKU_OAUTH_TOKEN_URL,
-  oauthRedirectUri: parsed.HEROKU_OAUTH_REDIRECT_URI
+  oauthRedirectUri: resolveOAuthRedirectUri({
+    explicitRedirectUri: parsed.HEROKU_OAUTH_REDIRECT_URI,
+    publicBaseUrl,
+    port: parsed.PORT
+  })
 };
 
 export type AppConfig = typeof appConfig;

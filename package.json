@@ -3,6 +3,9 @@
   "version": "0.1.0",
   "description": "Heroku MCP server with Cloudflare-style search and execute tools",
   "type": "module",
+  "engines": {
+    "node": "24.x"
+  },
   "main": "dist/index.js",
   "bin": {
     "heroku-code-mcp": "dist/index.js"
@@ -27,6 +30,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "prepare": "npm run build",
+    "heroku-postbuild": "npm run build",
     "prepack": "npm run build",
     "validate:server": "node scripts/validate-server-json.mjs",
     "publish:dry-run": "npm pack --dry-run",

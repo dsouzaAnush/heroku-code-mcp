@@ -48,6 +48,65 @@ curl -sS http://127.0.0.1:3000/healthz
 MCP_URL=http://127.0.0.1:3000/mcp USER_ID=default npm run smoke:mcp
 ```
 
+## Deploy to Heroku
+
+This repo is ready for Heroku Git deployment as a Node web dyno. The hosted MCP endpoint is:
+
+```text
+https://<app-name>.herokuapp.com/mcp
+```
+
+Create the app and set the required production config:
+
+```bash
+heroku apps:create <app-name>
+heroku git:remote -a <app-name>
+
+TOKEN_KEY="$(node -e 'console.log(require("crypto").randomBytes(32).toString("base64"))')"
+WRITE_SECRET="$(openssl rand -hex 32)"
+MCP_SECRET="$(openssl rand -hex 32)"
+
+heroku config:set \
+  PUBLIC_BASE_URL="https://<app-name>.herokuapp.com" \
+  TOKEN_ENCRYPTION_KEY_BASE64="$TOKEN_KEY" \
+  WRITE_CONFIRMATION_SECRET="$WRITE_SECRET" \
+  MCP_AUTH_TOKEN="$MCP_SECRET" \
+  ALLOW_WRITES=false \
+  -a <app-name>
+```
+
+For OAuth-backed `execute` calls, create a Heroku OAuth client with this callback URL:
+
+```text
+https://<app-name>.herokuapp.com/oauth/callback
+```
+
+Then set:
+
+```bash
+heroku config:set \
+  HEROKU_OAUTH_CLIENT_ID="<client-id>" \
+  HEROKU_OAUTH_CLIENT_SECRET="<client-secret>" \
+  -a <app-name>
+```
+
+Deploy and verify:
+
+```bash
+git push heroku main
+curl -sS "https://<app-name>.herokuapp.com/healthz"
+MCP_URL="https://<app-name>.herokuapp.com/mcp" \
+  MCP_AUTH_TOKEN="$MCP_SECRET" \
+  USER_ID=default \
+  npm run smoke:mcp
+```
+
+When adding the hosted server to an MCP client, include:
+
+```text
+Authorization: Bearer <MCP_AUTH_TOKEN>
+```
+
 Before npm publication, the package can also run from GitHub:
 
 ```bash
