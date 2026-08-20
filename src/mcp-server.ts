@@ -218,7 +218,7 @@ function previewBlocks(input: {
   ];
 }
 
-function deploymentBlocks(input: {
+export function deploymentBlocks(input: {
   deps: ServerDeps;
   data: Record<string, unknown>;
   appName: string;
@@ -227,6 +227,43 @@ function deploymentBlocks(input: {
   const app = getAppLinks(input.appName);
   const status = input.status ?? "pending";
   const complete = status === "succeeded" || status === "failed";
+  const build =
+    input.data.build && typeof input.data.build === "object"
+      ? (input.data.build as Record<string, unknown>)
+      : {};
+  const buildId = typeof build.id === "string" ? build.id : undefined;
+  const livePreview =
+    input.data.live_preview && typeof input.data.live_preview === "object"
+      ? (input.data.live_preview as Record<string, unknown>)
+      : undefined;
+  const actions: Array<Record<string, unknown>> = [];
+
+  if (!complete && buildId) {
+    actions.push({
+      type: "button",
+      text: { type: "plain_text", text: "Check deployment" },
+      style: "primary",
+      action_id: "tool:get_deployment_status",
+      value: JSON.stringify({ app_name: input.appName, build_id: buildId })
+    });
+  }
+
+  actions.push(
+    {
+      type: "button",
+      text: { type: "plain_text", text: complete && status === "succeeded" ? "Open live app" : "Open app" },
+      style: status === "succeeded" ? "primary" : undefined,
+      url: app.web_url,
+      action_id: "open_live_app"
+    },
+    {
+      type: "button",
+      text: { type: "plain_text", text: "Build activity and logs" },
+      url: app.activity_url,
+      action_id: "open_build_activity"
+    }
+  );
+
   return [
     herokuContextBlock(input.deps),
     {
@@ -243,23 +280,42 @@ function deploymentBlocks(input: {
         text: `*${input.appName}*\nCode reviewed ✓ · Existing app reused ✓ · Build ${status}`
       }
     },
+    ...(buildId
+      ? [
+          {
+            type: "context",
+            elements: [{ type: "mrkdwn", text: `Build ID: \`${buildId}\`` }]
+          }
+        ]
+      : []),
+    ...(status === "succeeded" && livePreview
+      ? [
+          {
+            type: "section",
+            text: {
+              type: "mrkdwn",
+              text: `*Live preview*\n${
+                typeof livePreview.title === "string"
+                  ? livePreview.title
+                  : input.appName
+              }${
+                typeof livePreview.http_status === "number"
+                  ? ` · HTTP ${livePreview.http_status}`
+                  : ""
+              }\n${
+                typeof livePreview.description === "string"
+                  ? livePreview.description
+                  : typeof livePreview.text_preview === "string"
+                    ? livePreview.text_preview.slice(0, 500)
+                    : "The reviewed release is live on Heroku."
+              }`
+            }
+          }
+        ]
+      : []),
     {
       type: "actions",
-      elements: [
-        {
-          type: "button",
-          text: { type: "plain_text", text: complete && status === "succeeded" ? "Open live app" : "Open app" },
-          style: status === "succeeded" ? "primary" : undefined,
-          url: app.web_url,
-          action_id: "open_live_app"
-        },
-        {
-          type: "button",
-          text: { type: "plain_text", text: "Build activity and logs" },
-          url: app.activity_url,
-          action_id: "open_build_activity"
-        }
-      ]
+      elements: actions
     }
   ];
 }

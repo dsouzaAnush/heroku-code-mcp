@@ -3,6 +3,7 @@ import {
   fetchGitHubSourcePreview,
   fetchLiveAppSummary
 } from "../src/github/source-preview.js";
+import { deploymentBlocks } from "../src/mcp-server.js";
 import { createHerokuDeployAppHtml } from "../src/ui/heroku-deploy-app.js";
 
 describe("GitHub deployment source preview", () => {
@@ -79,5 +80,46 @@ describe("Heroku MCP App HTML", () => {
     expect(html).toContain('name: "deploy_github_repo"');
     expect(html).toContain('name: "get_deployment_status"');
     expect(html).toContain("Source files");
+  });
+});
+
+describe("Slack deployment cards", () => {
+  test("preserves the build ID in a one-click status action", () => {
+    const blocks = deploymentBlocks({
+      deps: {
+        config: { publicBaseUrl: "https://mcp.example.com" }
+      } as never,
+      appName: "slackbot-mcp-demo-40973",
+      status: "pending",
+      data: {
+        build: { id: "bc2373aa-736a-41bf-ae19-9cb147a1cbed" }
+      }
+    });
+
+    expect(JSON.stringify(blocks)).toContain("tool:get_deployment_status");
+    expect(JSON.stringify(blocks)).toContain("bc2373aa-736a-41bf-ae19-9cb147a1cbed");
+    expect(JSON.stringify(blocks)).toContain("Check deployment");
+  });
+
+  test("shows a live-page summary after a successful release", () => {
+    const blocks = deploymentBlocks({
+      deps: {
+        config: { publicBaseUrl: "https://mcp.example.com" }
+      } as never,
+      appName: "slackbot-mcp-demo-40973",
+      status: "succeeded",
+      data: {
+        build: { id: "bc2373aa-736a-41bf-ae19-9cb147a1cbed" },
+        live_preview: {
+          title: "Node.js Getting Started on Heroku",
+          http_status: 200,
+          description: "Deployed from Slackbot"
+        }
+      }
+    });
+
+    expect(JSON.stringify(blocks)).toContain("Deployment is live");
+    expect(JSON.stringify(blocks)).toContain("Node.js Getting Started on Heroku");
+    expect(JSON.stringify(blocks)).toContain("HTTP 200");
   });
 });
