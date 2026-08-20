@@ -559,11 +559,15 @@ export function createHerokuMcpServer(deps: ServerDeps): McpServer {
           await deps.schemaService.ensureReady();
           const apps = await deps.executor.listApps(userId);
           const normalized = normalizeAppList(apps);
-          const deploymentApp = normalized.apps.find(
-            (app) =>
-              deps.config.slackDeployAllowedApps.includes(app.name) &&
-              !new URL(getPublicBaseUrl(deps)).hostname.startsWith(`${app.name}.`)
+          const allowlistedDeploymentApps = normalized.apps.filter((app) =>
+            deps.config.slackDeployAllowedApps.includes(app.name)
           );
+          const deploymentApp =
+            allowlistedDeploymentApps.find((app) => app.name.includes("demo")) ??
+            allowlistedDeploymentApps.find(
+              (app) => !new URL(getPublicBaseUrl(deps)).hostname.startsWith(app.name)
+            ) ??
+            allowlistedDeploymentApps[0];
           const deploymentRepo =
             deps.config.slackDeployAllowedRepos.find(
               (repo) => repo === "heroku/nodejs-getting-started"
