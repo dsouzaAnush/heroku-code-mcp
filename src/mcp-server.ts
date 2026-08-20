@@ -247,13 +247,10 @@ export function createHerokuMcpServer(deps: ServerDeps): McpServer {
       // can complete the first live app-listing scenario without a generic
       // executor or any write access.
       if (isLiveAppListQuery(query)) {
-        const appResult = await deps.executor.execute(
-          { operation_id: "GET /apps" },
-          userId
-        );
+        const apps = await deps.executor.listApps(userId);
         return serializeResult({
           matching_operations: results,
-          live_app_list: normalizeAppList(appResult.body)
+          live_app_list: normalizeAppList(apps)
         });
       }
 
@@ -329,11 +326,8 @@ export function createHerokuMcpServer(deps: ServerDeps): McpServer {
         try {
           const userId = resolveAuthorizedUserId(extra, deps);
           await deps.schemaService.ensureReady();
-          const result = await deps.executor.execute(
-            { operation_id: "GET /apps" },
-            userId
-          );
-          return serializeResult(normalizeAppList(result.body));
+          const apps = await deps.executor.listApps(userId);
+          return serializeResult(normalizeAppList(apps));
         } catch (error) {
           return {
             isError: true,

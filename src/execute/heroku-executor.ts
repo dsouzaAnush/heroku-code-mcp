@@ -107,6 +107,46 @@ export class HerokuExecutor {
     this.fetchFn = deps.fetchFn ?? fetch;
   }
 
+  async listApps(userId: string): Promise<unknown> {
+    const accessToken = await this.deps.getAccessToken(userId);
+    if (!accessToken) {
+      throw new ToolError(
+        "No Heroku OAuth token found for user. Complete /oauth/start first.",
+        "AUTH_REQUIRED",
+        401
+      );
+    }
+
+    const url = new URL("/apps", this.deps.config.herokuApiBaseUrl);
+    const response = await this.fetchWithRetry(
+      url.toString(),
+      {
+        method: "GET",
+        headers: {
+          Accept: this.deps.config.herokuAcceptHeader,
+          Authorization: `Bearer ${accessToken}`
+        }
+      },
+      true
+    );
+
+    const contentType = response.headers.get("content-type") ?? "";
+    const parsedBody = contentType.includes("application/json")
+      ? await response.json().catch(async () => response.text())
+      : await response.text();
+    const redactedBody = redactBody(parsedBody);
+
+    if (!response.ok) {
+      throw new ToolError(
+        `Heroku API request failed: HTTP ${response.status}${this.buildErrorSuffix(redactedBody)}`,
+        "HEROKU_API_ERROR",
+        response.status
+      );
+    }
+
+    return redactedBody;
+  }
+
   async execute(input: ExecuteRequest, userId: string): Promise<ExecuteResponse> {
     const operation = this.deps.getOperation(input.operation_id);
     if (!operation) {

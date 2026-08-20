@@ -359,6 +359,47 @@ describe("HerokuExecutor", () => {
     });
   });
 
+  test("preserves a large app array for safe app-list normalization", async () => {
+    const operation: HerokuOperation = {
+      operationId: "GET /apps",
+      method: "GET",
+      pathTemplate: "/apps",
+      rawHref: "/apps",
+      definitionName: "app",
+      pathParams: [],
+      requiredParams: [],
+      isMutating: false,
+      searchText: ""
+    };
+    const apps = Array.from({ length: 200 }, (_, index) => ({
+      id: `app-${index}`,
+      name: `example-${index}`,
+      owner: { email: "private@example.com" }
+    }));
+    const executor = makeExecutor({
+      operation,
+      rootSchema: { definitions: {} },
+      fetchFn: async () =>
+        new Response(JSON.stringify(apps), {
+          status: 200,
+          headers: { "content-type": "application/json" }
+        }),
+      configOverrides: {
+        executeMaxBodyBytes: 256,
+        executeBodyPreviewChars: 64
+      }
+    });
+
+    const result = await executor.listApps("u1");
+
+    expect(result).toHaveLength(200);
+    expect((result as Array<Record<string, unknown>>)[0]).toMatchObject({
+      id: "app-0",
+      name: "example-0",
+      owner: { email: "private@example.com" }
+    });
+  });
+
   test("blocks writes when ALLOW_WRITES is false", async () => {
     const operation: HerokuOperation = {
       operationId: "PATCH /apps/{app_identity}",
