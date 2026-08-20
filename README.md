@@ -73,6 +73,8 @@ Slack mode deliberately omits the generic `execute` tool by default. It exposes:
 - `auth_status`: verifies that the allowlisted Slack caller can use the configured
   Heroku service credential without returning that credential.
 - `search`: read-only Heroku Platform API operation discovery.
+  In Slack mode, app-listing queries also return a live, non-secret `GET /apps`
+  result so older Slackbot tool-catalog snapshots can complete the read test.
 - `list_apps`: lists the Heroku app names visible to the authenticated service
   account, with non-secret identifiers and status metadata.
 - `deploy_github_repo`: starts a Heroku Build API deployment, restricted to the

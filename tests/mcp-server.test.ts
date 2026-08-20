@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { normalizeAppList } from "../src/mcp-server.js";
+import { isLiveAppListQuery, normalizeAppList } from "../src/mcp-server.js";
 
 describe("Slack-safe app listing", () => {
   test("returns app names and non-secret metadata", () => {
@@ -34,5 +34,18 @@ describe("Slack-safe app listing", () => {
       count: 0,
       apps: []
     });
+  });
+
+  test.each([
+    "list my apps",
+    "list Heroku apps",
+    "Heroku apps list",
+    "GET /apps"
+  ])("recognizes a live app-list query: %s", (query) => {
+    expect(isLiveAppListQuery(query)).toBe(true);
+  });
+
+  test("does not treat ordinary operation searches as live app-list queries", () => {
+    expect(isLiveAppListQuery("find build endpoints")).toBe(false);
   });
 });

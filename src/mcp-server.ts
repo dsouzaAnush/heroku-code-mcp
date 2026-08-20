@@ -170,6 +170,19 @@ export function normalizeAppList(body: unknown) {
   };
 }
 
+export function isLiveAppListQuery(query: string): boolean {
+  const normalized = query
+    .toLowerCase()
+    .replace(/[_/-]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  return (
+    /\blist\b.*\bapps?\b/.test(normalized) ||
+    /\bapps?\b.*\blist\b/.test(normalized) ||
+    normalized.includes("get apps")
+  );
+}
+
 function formatError(error: unknown): string {
   if (error instanceof ToolError) {
     return JSON.stringify(
@@ -221,13 +234,29 @@ export function createHerokuMcpServer(deps: ServerDeps): McpServer {
       }
     },
     async ({ query, limit, resource_filter }, extra) => {
-      resolveAuthorizedUserId(extra, deps);
+      const userId = resolveAuthorizedUserId(extra, deps);
       await deps.schemaService.ensureReady();
       const results = deps.searchIndex.search({
         query,
         limit,
         resourceFilter: resource_filter
       });
+
+      // Slackbot may retain an older tool catalog briefly after a server update.
+      // Keep this read-only compatibility path so its already-cached search tool
+      // can complete the first live app-listing scenario without a generic
+      // executor or any write access.
+      if (isLiveAppListQuery(query)) {
+        const appResult = await deps.executor.execute(
+          { operation_id: "GET /apps" },
+          userId
+        );
+        return serializeResult({
+          matching_operations: results,
+          live_app_list: normalizeAppList(appResult.body)
+        });
+      }
+
       return serializeResult(results);
     }
   );
