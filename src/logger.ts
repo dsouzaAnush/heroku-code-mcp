@@ -9,6 +9,7 @@ export function createLogger(config: AppConfig) {
       paths: [
         "req.headers.authorization",
         "req.headers.cookie",
+        "req.headers.x-mcp-auth-token",
         "response.body.access_token",
         "response.body.refresh_token",
         "oauth.accessToken",

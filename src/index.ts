@@ -1,11 +1,12 @@
 #!/usr/bin/env node
 import { randomUUID } from "node:crypto";
-import express, { type Request } from "express";
+import express, { type Request, type RequestHandler } from "express";
 import pinoHttpImport from "pino-http";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { appConfig } from "./config.js";
 import { createLogger } from "./logger.js";
+import { isMcpRequestAuthorized } from "./auth/mcp-access.js";
 import { EncryptedTokenStore } from "./auth/token-store.js";
 import { HerokuOAuthService } from "./auth/oauth-service.js";
 import { verifySlackRequest } from "./auth/slack-request.js";
@@ -21,6 +22,15 @@ interface SessionRecord {
 
 interface RawBodyRequest extends Request {
   rawBody?: string;
+}
+
+function getLocalBaseUrl(): string {
+  const displayHost = appConfig.host === "0.0.0.0" ? "127.0.0.1" : appConfig.host;
+  return `http://${displayHost}:${appConfig.port}`;
+}
+
+function serviceUrl(path: string): string {
+  return new URL(path, appConfig.publicBaseUrl ?? getLocalBaseUrl()).toString();
 }
 
 function isInitializeRequest(body: unknown): boolean {
@@ -99,15 +109,38 @@ async function main(): Promise<void> {
   );
   app.use(pinoHttp({ logger }));
 
+  const requireMcpAccess: RequestHandler = (req, res, next) => {
+    if (appConfig.authMode === "slack_identity") {
+      next();
+      return;
+    }
+
+    if (
+      isMcpRequestAuthorized(req.headers, {
+        authToken: appConfig.mcpAuthToken,
+        authHeader: appConfig.mcpAuthHeader
+      })
+    ) {
+      next();
+      return;
+    }
+
+    res.status(401).json({ error: "Unauthorized" });
+  };
+
   app.get("/", (_req, res) => {
     res.json({
       ok: true,
       service: "heroku-code-mcp",
       transport: "streamable-http",
       auth_mode: appConfig.authMode,
+      auth_required:
+        appConfig.authMode === "slack_identity" || Boolean(appConfig.mcpAuthToken),
       endpoints: {
-        mcp: "/mcp",
-        healthz: "/healthz"
+        mcp: serviceUrl("/mcp"),
+        healthz: serviceUrl("/healthz"),
+        oauth_start: serviceUrl("/oauth/start"),
+        oauth_callback: appConfig.oauthRedirectUri
       }
     });
   });
@@ -120,7 +153,7 @@ async function main(): Promise<void> {
     });
   });
 
-  app.get("/oauth/start", (req, res) => {
+  app.get("/oauth/start", requireMcpAccess, (req, res) => {
     try {
       const userId = String(req.query.user_id ?? "default");
       const mode = String(req.query.mode ?? "redirect");
@@ -156,7 +189,7 @@ async function main(): Promise<void> {
     }
   });
 
-  app.get("/oauth/status", async (req, res) => {
+  app.get("/oauth/status", requireMcpAccess, async (req, res) => {
     const userId = String(req.query.user_id ?? "default");
     const status = await oauthService.getAuthStatus(userId);
     res.json({ user_id: userId, ...status });
@@ -173,7 +206,7 @@ async function main(): Promise<void> {
       executor
     });
 
-  app.post("/mcp", async (req, res) => {
+  app.post("/mcp", requireMcpAccess, async (req, res) => {
     if (appConfig.authMode === "slack_identity") {
       const rawBody = (req as RawBodyRequest).rawBody;
       const signatureIsValid =
@@ -219,7 +252,6 @@ async function main(): Promise<void> {
       }
       return;
     }
-
     const sessionId = req.headers["mcp-session-id"];
 
     try {
@@ -294,12 +326,11 @@ async function main(): Promise<void> {
     }
   });
 
-  app.get("/mcp", async (req, res) => {
+  app.get("/mcp", requireMcpAccess, async (req, res) => {
     if (appConfig.authMode === "slack_identity") {
       res.status(405).send("Slack MCP transport accepts POST requests only");
       return;
     }
-
     const sessionId = req.headers["mcp-session-id"];
 
     if (typeof sessionId !== "string") {
@@ -316,12 +347,11 @@ async function main(): Promise<void> {
     await existing.transport.handleRequest(req, res);
   });
 
-  app.delete("/mcp", async (req, res) => {
+  app.delete("/mcp", requireMcpAccess, async (req, res) => {
     if (appConfig.authMode === "slack_identity") {
       res.status(405).send("Slack MCP transport accepts POST requests only");
       return;
     }
-
     const sessionId = req.headers["mcp-session-id"];
 
     if (typeof sessionId !== "string") {
@@ -343,7 +373,7 @@ async function main(): Promise<void> {
       {
         host: appConfig.host,
         port: appConfig.port,
-        mcpEndpoint: `http://${appConfig.host}:${appConfig.port}/mcp`
+        mcpEndpoint: serviceUrl("/mcp")
       },
       "Heroku Code Mode MCP server started"
     );

@@ -1,0 +1,57 @@
+{
+  "name": "Heroku Code MCP",
+  "description": "Hosted Streamable HTTP MCP server for searching and executing Heroku Platform API operations.",
+  "repository": "https://github.com/dsouzaAnush/heroku-code-mcp",
+  "keywords": [
+    "heroku",
+    "mcp",
+    "model-context-protocol"
+  ],
+  "env": {
+    "HOST": {
+      "value": "0.0.0.0"
+    },
+    "LOG_LEVEL": {
+      "value": "info"
+    },
+    "PUBLIC_BASE_URL": {
+      "description": "Public app origin, for example https://your-app.herokuapp.com. Used for endpoint metadata and OAuth callback defaults.",
+      "required": false
+    },
+    "ALLOW_WRITES": {
+      "value": "false"
+    },
+    "MCP_AUTH_TOKEN": {
+      "description": "Shared secret required to call /mcp and OAuth start/status endpoints. Send as Authorization: Bearer <token>.",
+      "generator": "secret"
+    },
+    "MCP_AUTH_HEADER": {
+      "value": "authorization"
+    },
+    "TOKEN_ENCRYPTION_KEY_BASE64": {
+      "description": "Base64-encoded 32-byte key for encrypting OAuth tokens. Generate with: node -e \"console.log(require('crypto').randomBytes(32).toString('base64'))\"",
+      "required": true
+    },
+    "WRITE_CONFIRMATION_SECRET": {
+      "description": "Secret used to sign write confirmation tokens.",
+      "generator": "secret"
+    },
+    "HEROKU_OAUTH_CLIENT_ID": {
+      "description": "Heroku OAuth client ID. Required for /oauth/start and execute calls.",
+      "required": false
+    },
+    "HEROKU_OAUTH_CLIENT_SECRET": {
+      "description": "Heroku OAuth client secret. Required for /oauth/start and execute calls.",
+      "required": false
+    },
+    "HEROKU_OAUTH_SCOPE": {
+      "value": "global"
+    }
+  },
+  "formation": {
+    "web": {
+      "quantity": 1
+    }
+  },
+  "success_url": "/"
+}

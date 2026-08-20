@@ -5,6 +5,16 @@ import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/
 const serverUrl = process.env.MCP_URL || "http://127.0.0.1:3000/mcp";
 const userId = process.env.USER_ID || "default";
 const operationId = process.env.READ_OPERATION_ID || "GET /apps";
+const authToken = process.env.MCP_AUTH_TOKEN;
+const authHeader = (process.env.MCP_AUTH_HEADER || "authorization").toLowerCase();
+const headers = {
+  "x-user-id": userId
+};
+
+if (authToken) {
+  headers[authHeader] =
+    authHeader === "authorization" ? `Bearer ${authToken}` : authToken;
+}
 
 const client = new Client({
   name: "heroku-mcp-smoke-test",
@@ -13,9 +23,7 @@ const client = new Client({
 
 const transport = new StreamableHTTPClientTransport(new URL(serverUrl), {
   requestInit: {
-    headers: {
-      "x-user-id": userId
-    }
+    headers
   }
 });
 
