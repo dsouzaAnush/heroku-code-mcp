@@ -25,7 +25,7 @@ function safeEqual(left: string, right: string): boolean {
 export function verifySlackRequest(options: {
   headers: Record<string, HeaderValue>;
   rawBody: string;
-  signingSecret: string;
+  signingSecret: string | string[];
   nowMs?: number;
 }): boolean {
   const timestamp = firstHeader(options.headers["x-slack-request-timestamp"]);
@@ -46,9 +46,15 @@ export function verifySlackRequest(options: {
   }
 
   const baseString = `v0:${timestamp}:${options.rawBody}`;
-  const expected = `v0=${createHmac("sha256", options.signingSecret)
-    .update(baseString)
-    .digest("hex")}`;
+  const signingSecrets = Array.isArray(options.signingSecret)
+    ? options.signingSecret
+    : [options.signingSecret];
 
-  return safeEqual(expected, signature);
+  return signingSecrets.some((signingSecret) => {
+    const expected = `v0=${createHmac("sha256", signingSecret)
+      .update(baseString)
+      .digest("hex")}`;
+
+    return safeEqual(expected, signature);
+  });
 }

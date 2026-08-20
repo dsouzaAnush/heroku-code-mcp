@@ -65,6 +65,10 @@ SLACK_DEPLOY_ALLOWED_REPOS="owner/public-repo" \
 npm start
 ```
 
+To trust more than one Slack app without breaking an existing connection, keep
+the primary secret in `SLACK_SIGNING_SECRET` and provide additional secrets as a
+comma-separated `SLACK_SIGNING_SECRETS` value.
+
 Use [`slack/manifest.json`](slack/manifest.json) to create the Slack app. Its MCP
 server URL points at the deployed `/mcp` endpoint and uses Slack identity auth.
 

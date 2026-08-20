@@ -33,6 +33,20 @@ describe("verifySlackRequest", () => {
     ).toBe(true);
   });
 
+  test("accepts a valid signature from any configured Slack app", () => {
+    expect(
+      verifySlackRequest({
+        headers: {
+          "x-slack-request-timestamp": timestamp,
+          "x-slack-signature": signature(rawBody)
+        },
+        rawBody,
+        signingSecret: ["another-slack-app-secret", signingSecret],
+        nowMs
+      })
+    ).toBe(true);
+  });
+
   test("rejects a signature when the body changes", () => {
     expect(
       verifySlackRequest({

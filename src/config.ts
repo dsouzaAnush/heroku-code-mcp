@@ -78,6 +78,7 @@ const envSchema = z.object({
     .default("local_oauth"),
   HEROKU_API_TOKEN: z.string().min(1).optional(),
   SLACK_SIGNING_SECRET: z.string().min(1).optional(),
+  SLACK_SIGNING_SECRETS: z.string().default(""),
   SLACK_ALLOWED_TEAM_IDS: z.string().default(""),
   SLACK_ALLOWED_ENTERPRISE_IDS: z.string().default(""),
   SLACK_ALLOWED_USER_IDS: z.string().default(""),
@@ -117,8 +118,13 @@ function parseCommaSeparated(value: string): string[] {
 }
 
 if (parsed.MCP_AUTH_MODE === "slack_identity") {
-  if (!parsed.SLACK_SIGNING_SECRET) {
-    throw new Error("SLACK_SIGNING_SECRET is required for MCP_AUTH_MODE=slack_identity");
+  if (
+    !parsed.SLACK_SIGNING_SECRET &&
+    parseCommaSeparated(parsed.SLACK_SIGNING_SECRETS).length === 0
+  ) {
+    throw new Error(
+      "SLACK_SIGNING_SECRET or SLACK_SIGNING_SECRETS is required for MCP_AUTH_MODE=slack_identity"
+    );
   }
 
   if (
@@ -158,6 +164,10 @@ export const appConfig = {
   authMode: parsed.MCP_AUTH_MODE,
   herokuApiToken: parsed.HEROKU_API_TOKEN,
   slackSigningSecret: parsed.SLACK_SIGNING_SECRET,
+  slackSigningSecrets: [
+    ...(parsed.SLACK_SIGNING_SECRET ? [parsed.SLACK_SIGNING_SECRET] : []),
+    ...parseCommaSeparated(parsed.SLACK_SIGNING_SECRETS)
+  ],
   slackAllowedTeamIds: parseCommaSeparated(parsed.SLACK_ALLOWED_TEAM_IDS),
   slackAllowedEnterpriseIds: parseCommaSeparated(parsed.SLACK_ALLOWED_ENTERPRISE_IDS),
   slackAllowedUserIds: parseCommaSeparated(parsed.SLACK_ALLOWED_USER_IDS),

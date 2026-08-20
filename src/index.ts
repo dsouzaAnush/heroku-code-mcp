@@ -211,11 +211,11 @@ async function main(): Promise<void> {
       const rawBody = (req as RawBodyRequest).rawBody;
       const signatureIsValid =
         typeof rawBody === "string" &&
-        Boolean(appConfig.slackSigningSecret) &&
+        appConfig.slackSigningSecrets.length > 0 &&
         verifySlackRequest({
           headers: req.headers,
           rawBody,
-          signingSecret: appConfig.slackSigningSecret as string
+          signingSecret: appConfig.slackSigningSecrets
         });
 
       if (!signatureIsValid) {
