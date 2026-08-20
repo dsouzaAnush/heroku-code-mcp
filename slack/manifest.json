@@ -1,19 +1,24 @@
 {
   "display_information": {
-    "name": "Heroku Deploy MCP",
-    "description": "Deploy allowlisted GitHub repositories to allowlisted Heroku apps from Slackbot",
+    "name": "Heroku Platform MCP",
+    "description": "Connects Heroku Platform API tools to Slackbot using Slack identity auth",
     "background_color": "#430098"
   },
   "features": {
     "bot_user": {
-      "display_name": "Heroku Deploy MCP",
-      "always_online": false
+      "display_name": "Heroku Platform MCP",
+      "always_online": true
     }
   },
   "oauth_config": {
+    "redirect_urls": [
+      "https://heroku-code-mcp-6f3ee2b0ca2d.herokuapp.com/slack/oauth_redirect"
+    ],
     "scopes": {
       "bot": [
-        "mcp:connect"
+        "mcp:connect",
+        "users:read",
+        "users:read.email"
       ]
     }
   },
@@ -23,7 +28,7 @@
     "token_rotation_enabled": false
   },
   "mcp_servers": {
-    "heroku": {
+    "heroku-platform": {
       "url": "https://heroku-code-mcp-6f3ee2b0ca2d.herokuapp.com/mcp",
       "auth_type": "slack_identity_auth"
     }

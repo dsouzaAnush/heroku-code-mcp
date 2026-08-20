@@ -88,7 +88,9 @@ Slack mode deliberately omits the generic `execute` tool by default. It exposes:
 Set `SLACK_ALLOWED_USER_IDS` for an additional per-user allowlist. The service
 refuses Slack identity mode unless a signing secret and at least one team or
 Enterprise-org ID are configured. `SLACK_ENABLE_GENERIC_EXECUTE=true` restores
-the broad Platform API executor, but is not recommended for a shared Slack demo.
+the broad Platform API executor. In a dedicated demo workspace, pair it with a
+non-empty `SLACK_ALLOWED_USER_IDS`; mutating operations still require the
+server-issued dry-run confirmation token before execution.
 
 ## Deploy to Heroku
 
