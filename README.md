@@ -48,6 +48,40 @@ curl -sS http://127.0.0.1:3000/healthz
 MCP_URL=http://127.0.0.1:3000/mcp USER_ID=default npm run smoke:mcp
 ```
 
+## Slackbot MCP Client
+
+Slackbot requires a remote Streamable HTTP endpoint and signs each request. Run
+this server in `slack_identity` mode to verify those signatures and authorize
+tool calls from an allowlisted Slack workspace or Enterprise org:
+
+```bash
+MCP_AUTH_MODE=slack_identity \
+SLACK_SIGNING_SECRET="<Slack app signing secret>" \
+SLACK_ALLOWED_ENTERPRISE_IDS="E0123456789" \
+HEROKU_API_TOKEN="<Heroku service token>" \
+ALLOW_WRITES=true \
+SLACK_DEPLOY_ALLOWED_APPS="my-demo-app" \
+SLACK_DEPLOY_ALLOWED_REPOS="owner/public-repo" \
+npm start
+```
+
+Use [`slack/manifest.json`](slack/manifest.json) to create the Slack app. Its MCP
+server URL points at the deployed `/mcp` endpoint and uses Slack identity auth.
+
+Slack mode deliberately omits the generic `execute` tool by default. It exposes:
+
+- `auth_status`: verifies that the allowlisted Slack caller can use the configured
+  Heroku service credential without returning that credential.
+- `search`: read-only Heroku Platform API operation discovery.
+- `deploy_github_repo`: starts a Heroku Build API deployment, restricted to the
+  app and public GitHub repository allowlists above.
+- `get_deployment_status`: checks the resulting Heroku build by ID.
+
+Set `SLACK_ALLOWED_USER_IDS` for an additional per-user allowlist. The service
+refuses Slack identity mode unless a signing secret and at least one team or
+Enterprise-org ID are configured. `SLACK_ENABLE_GENERIC_EXECUTE=true` restores
+the broad Platform API executor, but is not recommended for a shared Slack demo.
+
 Before npm publication, the package can also run from GitHub:
 
 ```bash

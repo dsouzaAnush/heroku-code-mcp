@@ -29,6 +29,21 @@ const envSchema = z.object({
   USER_ID_HEADER: z.string().default("x-user-id"),
   WRITE_CONFIRMATION_SECRET: z.string().min(8).default("local-dev-secret"),
 
+  MCP_AUTH_MODE: z
+    .enum(["local_oauth", "slack_identity"])
+    .default("local_oauth"),
+  HEROKU_API_TOKEN: z.string().min(1).optional(),
+  SLACK_SIGNING_SECRET: z.string().min(1).optional(),
+  SLACK_ALLOWED_TEAM_IDS: z.string().default(""),
+  SLACK_ALLOWED_ENTERPRISE_IDS: z.string().default(""),
+  SLACK_ALLOWED_USER_IDS: z.string().default(""),
+  SLACK_DEPLOY_ALLOWED_APPS: z.string().default(""),
+  SLACK_DEPLOY_ALLOWED_REPOS: z.string().default(""),
+  SLACK_ENABLE_GENERIC_EXECUTE: z
+    .string()
+    .default("false")
+    .transform((value) => value.toLowerCase() === "true"),
+
   TOKEN_STORE_PATH: z.string().default("./data/tokens.json"),
   TOKEN_ENCRYPTION_KEY_BASE64: z.string().optional(),
 
@@ -47,6 +62,28 @@ const envSchema = z.object({
 });
 
 const parsed = envSchema.parse(process.env);
+
+function parseCommaSeparated(value: string): string[] {
+  return value
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+if (parsed.MCP_AUTH_MODE === "slack_identity") {
+  if (!parsed.SLACK_SIGNING_SECRET) {
+    throw new Error("SLACK_SIGNING_SECRET is required for MCP_AUTH_MODE=slack_identity");
+  }
+
+  if (
+    parseCommaSeparated(parsed.SLACK_ALLOWED_TEAM_IDS).length === 0 &&
+    parseCommaSeparated(parsed.SLACK_ALLOWED_ENTERPRISE_IDS).length === 0
+  ) {
+    throw new Error(
+      "At least one Slack team or enterprise ID is required for MCP_AUTH_MODE=slack_identity"
+    );
+  }
+}
 
 export const appConfig = {
   port: parsed.PORT,
@@ -68,6 +105,18 @@ export const appConfig = {
   executeBodyPreviewChars: parsed.EXECUTE_BODY_PREVIEW_CHARS,
   userIdHeader: parsed.USER_ID_HEADER.toLowerCase(),
   writeConfirmationSecret: parsed.WRITE_CONFIRMATION_SECRET,
+
+  authMode: parsed.MCP_AUTH_MODE,
+  herokuApiToken: parsed.HEROKU_API_TOKEN,
+  slackSigningSecret: parsed.SLACK_SIGNING_SECRET,
+  slackAllowedTeamIds: parseCommaSeparated(parsed.SLACK_ALLOWED_TEAM_IDS),
+  slackAllowedEnterpriseIds: parseCommaSeparated(parsed.SLACK_ALLOWED_ENTERPRISE_IDS),
+  slackAllowedUserIds: parseCommaSeparated(parsed.SLACK_ALLOWED_USER_IDS),
+  slackDeployAllowedApps: parseCommaSeparated(parsed.SLACK_DEPLOY_ALLOWED_APPS),
+  slackDeployAllowedRepos: parseCommaSeparated(parsed.SLACK_DEPLOY_ALLOWED_REPOS).map(
+    (repo) => repo.toLowerCase()
+  ),
+  slackEnableGenericExecute: parsed.SLACK_ENABLE_GENERIC_EXECUTE,
 
   tokenStorePath: parsed.TOKEN_STORE_PATH,
   tokenEncryptionKeyBase64: parsed.TOKEN_ENCRYPTION_KEY_BASE64,

@@ -1,13 +1,14 @@
 #!/usr/bin/env node
 import { randomUUID } from "node:crypto";
+import express, { type Request } from "express";
 import pinoHttpImport from "pino-http";
-import { createMcpExpressApp } from "@modelcontextprotocol/sdk/server/express.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { appConfig } from "./config.js";
 import { createLogger } from "./logger.js";
 import { EncryptedTokenStore } from "./auth/token-store.js";
 import { HerokuOAuthService } from "./auth/oauth-service.js";
+import { verifySlackRequest } from "./auth/slack-request.js";
 import { HerokuSchemaService } from "./schema/heroku-schema-service.js";
 import { SearchIndex } from "./search/search-index.js";
 import { HerokuExecutor } from "./execute/heroku-executor.js";
@@ -16,6 +17,10 @@ import { createHerokuMcpServer } from "./mcp-server.js";
 interface SessionRecord {
   transport: StreamableHTTPServerTransport;
   server: McpServer;
+}
+
+interface RawBodyRequest extends Request {
+  rawBody?: string;
 }
 
 function isInitializeRequest(body: unknown): boolean {
@@ -79,14 +84,40 @@ async function main(): Promise<void> {
     logger,
     getOperation: (operationId) => schemaService.getOperation(operationId),
     getRootSchema: () => schemaService.getRootSchema(),
-    getAccessToken: async (userId) => oauthService.getValidAccessToken(userId)
+    getAccessToken: async (userId) =>
+      appConfig.herokuApiToken ?? oauthService.getValidAccessToken(userId)
   });
 
-  const app = createMcpExpressApp({ host: appConfig.host });
+  const app = express();
+  app.use(
+    express.json({
+      limit: "1mb",
+      verify: (req, _res, buffer) => {
+        (req as RawBodyRequest).rawBody = buffer.toString("utf8");
+      }
+    })
+  );
   app.use(pinoHttp({ logger }));
 
+  app.get("/", (_req, res) => {
+    res.json({
+      ok: true,
+      service: "heroku-code-mcp",
+      transport: "streamable-http",
+      auth_mode: appConfig.authMode,
+      endpoints: {
+        mcp: "/mcp",
+        healthz: "/healthz"
+      }
+    });
+  });
+
   app.get("/healthz", (_req, res) => {
-    res.json({ ok: true, service: "heroku-code-mcp" });
+    res.json({
+      ok: true,
+      service: "heroku-code-mcp",
+      auth_mode: appConfig.authMode
+    });
   });
 
   app.get("/oauth/start", (req, res) => {
@@ -143,6 +174,52 @@ async function main(): Promise<void> {
     });
 
   app.post("/mcp", async (req, res) => {
+    if (appConfig.authMode === "slack_identity") {
+      const rawBody = (req as RawBodyRequest).rawBody;
+      const signatureIsValid =
+        typeof rawBody === "string" &&
+        Boolean(appConfig.slackSigningSecret) &&
+        verifySlackRequest({
+          headers: req.headers,
+          rawBody,
+          signingSecret: appConfig.slackSigningSecret as string
+        });
+
+      if (!signatureIsValid) {
+        res.status(401).json({
+          jsonrpc: "2.0",
+          error: { code: -32600, message: "Invalid Slack request signature" },
+          id: null
+        });
+        return;
+      }
+
+      const server = buildServer();
+      const transport = new StreamableHTTPServerTransport({
+        sessionIdGenerator: undefined
+      });
+      res.on("close", () => {
+        void server.close().catch((error) => {
+          logger.debug({ err: error }, "Failed to close stateless MCP server");
+        });
+      });
+
+      try {
+        await server.connect(transport);
+        await transport.handleRequest(req, res, req.body);
+      } catch (error) {
+        logger.error({ err: error }, "Error handling Slack MCP POST");
+        if (!res.headersSent) {
+          res.status(500).json({
+            jsonrpc: "2.0",
+            error: { code: -32603, message: "Internal server error" },
+            id: null
+          });
+        }
+      }
+      return;
+    }
+
     const sessionId = req.headers["mcp-session-id"];
 
     try {
@@ -218,6 +295,11 @@ async function main(): Promise<void> {
   });
 
   app.get("/mcp", async (req, res) => {
+    if (appConfig.authMode === "slack_identity") {
+      res.status(405).send("Slack MCP transport accepts POST requests only");
+      return;
+    }
+
     const sessionId = req.headers["mcp-session-id"];
 
     if (typeof sessionId !== "string") {
@@ -235,6 +317,11 @@ async function main(): Promise<void> {
   });
 
   app.delete("/mcp", async (req, res) => {
+    if (appConfig.authMode === "slack_identity") {
+      res.status(405).send("Slack MCP transport accepts POST requests only");
+      return;
+    }
+
     const sessionId = req.headers["mcp-session-id"];
 
     if (typeof sessionId !== "string") {

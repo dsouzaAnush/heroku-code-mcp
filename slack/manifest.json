@@ -1,0 +1,31 @@
+{
+  "display_information": {
+    "name": "Heroku Deploy MCP",
+    "description": "Deploy allowlisted GitHub repositories to allowlisted Heroku apps from Slackbot",
+    "background_color": "#430098"
+  },
+  "features": {
+    "bot_user": {
+      "display_name": "Heroku Deploy MCP",
+      "always_online": false
+    }
+  },
+  "oauth_config": {
+    "scopes": {
+      "bot": [
+        "mcp:connect"
+      ]
+    }
+  },
+  "settings": {
+    "org_deploy_enabled": true,
+    "socket_mode_enabled": false,
+    "token_rotation_enabled": false
+  },
+  "mcp_servers": {
+    "heroku": {
+      "url": "https://heroku-code-mcp-6f3ee2b0ca2d.herokuapp.com/mcp",
+      "auth_type": "slack_identity_auth"
+    }
+  }
+}
