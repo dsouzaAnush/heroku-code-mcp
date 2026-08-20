@@ -139,6 +139,37 @@ function normalizeBuildResult(options: {
   };
 }
 
+export function normalizeAppList(body: unknown) {
+  const apps = Array.isArray(body)
+    ? body.flatMap((candidate) => {
+        if (!candidate || typeof candidate !== "object") {
+          return [];
+        }
+
+        const app = candidate as Record<string, unknown>;
+        if (typeof app.name !== "string") {
+          return [];
+        }
+
+        return [
+          {
+            name: app.name,
+            id: typeof app.id === "string" ? app.id : undefined,
+            web_url: typeof app.web_url === "string" ? app.web_url : undefined,
+            maintenance:
+              typeof app.maintenance === "boolean" ? app.maintenance : undefined,
+            updated_at: typeof app.updated_at === "string" ? app.updated_at : undefined
+          }
+        ];
+      })
+    : [];
+
+  return {
+    count: apps.length,
+    apps
+  };
+}
+
 function formatError(error: unknown): string {
   if (error instanceof ToolError) {
     return JSON.stringify(
@@ -252,6 +283,37 @@ export function createHerokuMcpServer(deps: ServerDeps): McpServer {
   }
 
   if (deps.config.authMode === "slack_identity") {
+    server.registerTool(
+      "list_apps",
+      {
+        title: "List Heroku Apps",
+        description:
+          "Lists the Heroku apps available to the authenticated Heroku service account. Returns app names plus stable identifiers and non-secret status metadata.",
+        inputSchema: {},
+        annotations: {
+          readOnlyHint: true,
+          destructiveHint: false,
+          openWorldHint: true
+        }
+      },
+      async (_args, extra) => {
+        try {
+          const userId = resolveAuthorizedUserId(extra, deps);
+          await deps.schemaService.ensureReady();
+          const result = await deps.executor.execute(
+            { operation_id: "GET /apps" },
+            userId
+          );
+          return serializeResult(normalizeAppList(result.body));
+        } catch (error) {
+          return {
+            isError: true,
+            content: [{ type: "text", text: formatError(error) }]
+          };
+        }
+      }
+    );
+
     server.registerTool(
       "deploy_github_repo",
       {
