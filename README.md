@@ -80,10 +80,29 @@ Slack mode deliberately omits the generic `execute` tool by default. It exposes:
   In Slack mode, app-listing queries also return a live, non-secret `GET /apps`
   result so older Slackbot tool-catalog snapshots can complete the read test.
 - `list_apps`: lists the Heroku app names visible to the authenticated service
-  account, with non-secret identifiers and status metadata.
-- `deploy_github_repo`: starts a Heroku Build API deployment, restricted to the
-  app and public GitHub repository allowlists above.
-- `get_deployment_status`: checks the resulting Heroku build by ID.
+  account, with non-secret identifiers and status metadata. Slackbot receives
+  native Block Kit plus an interactive MCP App view.
+- `preview_github_deployment`: the required read-only first step. It resolves an
+  allowlisted GitHub ref to an immutable commit, previews common source and
+  deployment files, and shows the existing Heroku target before any write.
+- `deploy_github_repo`: deploys only the exact 40-character commit SHA returned
+  by the preview. The server re-resolves the ref and rejects deployment if the
+  source changed after review. It never creates another app.
+- `get_deployment_status`: checks the resulting Heroku build by ID. The MCP App
+  polls it, shows the build timeline, links to activity/logs, and produces a safe
+  live-page summary after release.
+
+The rich experience follows Slack's two supported rendering paths:
+
+- `_meta.slack.blocks` is the compact, Slack-native fallback for app lists,
+  review summaries, buttons, and build links.
+- `_meta.ui.resourceUri` points at `ui://heroku/deploy-workspace.html`, a
+  sandboxed MCP App for file browsing, immutable-source approval, progress, and
+  live preview. Standard text remains present for clients without either rich
+  extension.
+
+The Heroku app icon is served from `/assets/heroku-slack-app-icon.png` and reused
+in both rich surfaces.
 
 Set `SLACK_ALLOWED_USER_IDS` for an additional per-user allowlist. The service
 refuses Slack identity mode unless a signing secret and at least one team or

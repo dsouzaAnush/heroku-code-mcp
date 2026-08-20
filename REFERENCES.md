@@ -12,3 +12,16 @@
 
 - Model Context Protocol docs: https://modelcontextprotocol.io/
 - MCP Inspector: https://modelcontextprotocol.io/docs/tools/inspector
+- MCP Apps specification and SDK: https://github.com/modelcontextprotocol/ext-apps
+- MCP Apps quickstart: https://apps.extensions.modelcontextprotocol.io/api/documents/quickstart.html
+
+## Slackbot rich responses
+
+- Slackbot MCP Client rich responses: https://docs.slack.dev/ai/slackbot-mcp-client/returning-rich-responses/
+- Slack MCP Apps JavaScript example: https://github.com/slack-samples/bolt-js-examples/tree/main/ai/slackbot-mcp-client/rich-responses/mcp-apps
+
+## Deployment experience benchmarks
+
+- Vercel MCP overview: https://vercel.com/docs/agent-resources/vercel-mcp
+- Vercel MCP tools: https://vercel.com/docs/agent-resources/vercel-mcp/tools
+- Deploy MCP servers to Vercel: https://vercel.com/docs/mcp/deploy-mcp-servers-to-vercel

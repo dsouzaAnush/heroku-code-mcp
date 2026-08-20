@@ -5,6 +5,16 @@ import type { HerokuOAuthService } from "./auth/oauth-service.js";
 import type { HerokuSchemaService } from "./schema/heroku-schema-service.js";
 import type { SearchIndex } from "./search/search-index.js";
 import { HerokuExecutor, ToolError } from "./execute/heroku-executor.js";
+import {
+  fetchGitHubSourcePreview,
+  fetchLiveAppSummary,
+  type GitHubSourcePreview
+} from "./github/source-preview.js";
+import {
+  createHerokuDeployAppHtml,
+  HEROKU_DEPLOY_UI_URI,
+  MCP_APP_MIME_TYPE
+} from "./ui/heroku-deploy-app.js";
 import { getHeaderValue } from "./utils/headers.js";
 import type { ExecuteRequest } from "./types.js";
 
@@ -32,6 +42,205 @@ function serializeResult<T extends object>(data: T) {
     ],
     structuredContent: data as { [key: string]: unknown }
   };
+}
+
+function getPublicBaseUrl(deps: ServerDeps): string {
+  return deps.config.publicBaseUrl ?? "http://127.0.0.1:3000";
+}
+
+function getHerokuLogoUrl(deps: ServerDeps): string {
+  return new URL("/assets/heroku-slack-app-icon.png", getPublicBaseUrl(deps)).toString();
+}
+
+function getAppLinks(appName: string) {
+  return {
+    name: appName,
+    web_url: `https://${appName}.herokuapp.com/`,
+    dashboard_url: `https://dashboard.heroku.com/apps/${appName}`,
+    activity_url: `https://dashboard.heroku.com/apps/${appName}/activity`
+  };
+}
+
+function richToolMeta() {
+  return {
+    ui: { resourceUri: HEROKU_DEPLOY_UI_URI },
+    slack: { supportsBlockKit: true }
+  };
+}
+
+function richResult<T extends object>(input: {
+  data: T;
+  text: string;
+  blocks: Array<Record<string, unknown>>;
+}) {
+  return {
+    content: [{ type: "text" as const, text: input.text }],
+    structuredContent: input.data as { [key: string]: unknown },
+    _meta: {
+      ui: { resourceUri: HEROKU_DEPLOY_UI_URI },
+      slack: { blocks: input.blocks }
+    }
+  };
+}
+
+function herokuContextBlock(deps: ServerDeps): Record<string, unknown> {
+  return {
+    type: "context",
+    elements: [
+      {
+        type: "image",
+        image_url: getHerokuLogoUrl(deps),
+        alt_text: "Heroku"
+      },
+      { type: "mrkdwn", text: "*Heroku MCP* · Slackbot deployment workspace" }
+    ]
+  };
+}
+
+function appListBlocks(
+  deps: ServerDeps,
+  data: ReturnType<typeof normalizeAppList>
+): Array<Record<string, unknown>> {
+  const appBlocks = data.apps.slice(0, 12).map((app) => ({
+    type: "section",
+    text: {
+      type: "mrkdwn",
+      text: `*${app.name}*\n${app.maintenance ? "Maintenance mode" : "Available"}${app.updated_at ? ` · updated ${app.updated_at}` : ""}`
+    },
+    ...(app.web_url
+      ? {
+          accessory: {
+            type: "button",
+            text: { type: "plain_text", text: "Open app" },
+            url: app.web_url,
+            action_id: `open_${app.name}`
+          }
+        }
+      : {})
+  }));
+
+  return [
+    herokuContextBlock(deps),
+    {
+      type: "header",
+      text: { type: "plain_text", text: `Heroku apps (${data.count})` }
+    },
+    ...appBlocks
+  ];
+}
+
+function previewBlocks(input: {
+  deps: ServerDeps;
+  appName: string;
+  source: GitHubSourcePreview;
+}): Array<Record<string, unknown>> {
+  const deployArgs = JSON.stringify({
+    app_name: input.appName,
+    github_repo: input.source.repository,
+    git_ref: input.source.git_ref,
+    source_sha: input.source.source_sha
+  });
+  const firstFile = input.source.files[0];
+  const codePreview = firstFile
+    ? firstFile.content.slice(0, 1800)
+    : "No previewable text files were found.";
+  return [
+    herokuContextBlock(input.deps),
+    {
+      type: "header",
+      text: { type: "plain_text", text: "Review before deployment" }
+    },
+    {
+      type: "section",
+      fields: [
+        {
+          type: "mrkdwn",
+          text: `*Existing app*\n${input.appName}`
+        },
+        {
+          type: "mrkdwn",
+          text: `*Reviewed source*\n${input.source.repository}@${input.source.git_ref} · ${input.source.source_sha.slice(0, 10)}`
+        }
+      ]
+    },
+    {
+      type: "section",
+      text: {
+        type: "mrkdwn",
+        text: `*${firstFile?.path ?? "Source preview"}*\n\`\`\`${codePreview}\`\`\``
+      }
+    },
+    {
+      type: "actions",
+      elements: [
+        {
+          type: "button",
+          text: { type: "plain_text", text: "Deploy reviewed commit" },
+          style: "primary",
+          action_id: "tool:deploy_github_repo",
+          value: deployArgs
+        },
+        {
+          type: "button",
+          text: { type: "plain_text", text: "Open commit" },
+          url: input.source.commit_url,
+          action_id: "open_reviewed_commit"
+        }
+      ]
+    },
+    {
+      type: "context",
+      elements: [
+        { type: "mrkdwn", text: `No new app will be created. This deploy reuses *${input.appName}*.` }
+      ]
+    }
+  ];
+}
+
+function deploymentBlocks(input: {
+  deps: ServerDeps;
+  data: Record<string, unknown>;
+  appName: string;
+  status?: string;
+}): Array<Record<string, unknown>> {
+  const app = getAppLinks(input.appName);
+  const status = input.status ?? "pending";
+  const complete = status === "succeeded" || status === "failed";
+  return [
+    herokuContextBlock(input.deps),
+    {
+      type: "header",
+      text: {
+        type: "plain_text",
+        text: status === "succeeded" ? "Deployment is live" : status === "failed" ? "Deployment failed" : "Deployment started"
+      }
+    },
+    {
+      type: "section",
+      text: {
+        type: "mrkdwn",
+        text: `*${input.appName}*\nCode reviewed ✓ · Existing app reused ✓ · Build ${status}`
+      }
+    },
+    {
+      type: "actions",
+      elements: [
+        {
+          type: "button",
+          text: { type: "plain_text", text: complete && status === "succeeded" ? "Open live app" : "Open app" },
+          style: status === "succeeded" ? "primary" : undefined,
+          url: app.web_url,
+          action_id: "open_live_app"
+        },
+        {
+          type: "button",
+          text: { type: "plain_text", text: "Build activity and logs" },
+          url: app.activity_url,
+          action_id: "open_build_activity"
+        }
+      ]
+    }
+  ];
 }
 
 function resolveUserId(
@@ -320,14 +529,87 @@ export function createHerokuMcpServer(deps: ServerDeps): McpServer {
           readOnlyHint: true,
           destructiveHint: false,
           openWorldHint: true
-        }
+        },
+        _meta: richToolMeta()
       },
       async (_args, extra) => {
         try {
           const userId = resolveAuthorizedUserId(extra, deps);
           await deps.schemaService.ensureReady();
           const apps = await deps.executor.listApps(userId);
-          return serializeResult(normalizeAppList(apps));
+          const normalized = normalizeAppList(apps);
+          const data = { view: "app_list", ...normalized };
+          return richResult({
+            data,
+            text: `Found ${normalized.count} Heroku apps.`,
+            blocks: appListBlocks(deps, normalized)
+          });
+        } catch (error) {
+          return {
+            isError: true,
+            content: [{ type: "text", text: formatError(error) }]
+          };
+        }
+      }
+    );
+
+    server.registerTool(
+      "preview_github_deployment",
+      {
+        title: "Review GitHub Source Before Heroku Deployment",
+        description:
+          "Required read-only first step before deploy_github_repo. Resolves a public allowlisted GitHub ref to an immutable commit, returns a source-file preview, and shows the exact existing Heroku app that would receive it. Call this before asking the user to approve deployment.",
+        inputSchema: {
+          app_name: z.string().regex(/^[a-z][a-z0-9-]{1,28}[a-z0-9]$/),
+          github_repo: z.string().regex(/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/),
+          git_ref: z
+            .string()
+            .min(1)
+            .max(200)
+            .regex(/^[A-Za-z0-9._\/-]+$/)
+            .default("main")
+        },
+        annotations: {
+          readOnlyHint: true,
+          destructiveHint: false,
+          openWorldHint: true
+        },
+        _meta: richToolMeta()
+      },
+      async ({ app_name, github_repo, git_ref }, extra) => {
+        try {
+          resolveAuthorizedUserId(extra, deps);
+          const normalizedRepo = github_repo.toLowerCase();
+          if (!deps.config.slackDeployAllowedApps.includes(app_name)) {
+            throw new ToolError(
+              `App is not allowlisted for Slack deployments: ${app_name}`,
+              "DEPLOY_APP_NOT_ALLOWED",
+              403
+            );
+          }
+          if (!deps.config.slackDeployAllowedRepos.includes(normalizedRepo)) {
+            throw new ToolError(
+              `GitHub repository is not allowlisted for Slack deployments: ${github_repo}`,
+              "DEPLOY_REPO_NOT_ALLOWED",
+              403
+            );
+          }
+
+          const source = await fetchGitHubSourcePreview({
+            repository: github_repo,
+            gitRef: git_ref
+          });
+          const data = {
+            view: "deployment_preview",
+            status: "ready_to_deploy",
+            app: getAppLinks(app_name),
+            source
+          };
+          return richResult({
+            data,
+            text: `Reviewed ${github_repo}@${git_ref} at ${source.source_sha}. It is ready to deploy to the existing app ${app_name}.`,
+            blocks: previewBlocks({ deps, appName: app_name, source })
+          });
         } catch (error) {
           return {
             isError: true,
@@ -342,7 +624,7 @@ export function createHerokuMcpServer(deps: ServerDeps): McpServer {
       {
         title: "Deploy a GitHub Repository to Heroku",
         description:
-          "Starts a Heroku Build API deployment from an allowlisted public GitHub repository to an allowlisted Heroku app. The build runs asynchronously; use get_deployment_status with the returned build ID to check completion.",
+          "Deploys an exact Git commit that the user already reviewed through preview_github_deployment. Requires the immutable source_sha returned by that preview, rechecks the ref before deployment, reuses an allowlisted existing Heroku app, and never creates another app. The build runs asynchronously and the rich view polls get_deployment_status.",
         inputSchema: {
           app_name: z.string().regex(/^[a-z][a-z0-9-]{1,28}[a-z0-9]$/),
           github_repo: z.string().regex(/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/),
@@ -351,16 +633,21 @@ export function createHerokuMcpServer(deps: ServerDeps): McpServer {
             .min(1)
             .max(200)
             .regex(/^[A-Za-z0-9._\/-]+$/)
-            .default("main")
+            .default("main"),
+          source_sha: z
+            .string()
+            .regex(/^[a-f0-9]{40}$/i)
+            .describe("Immutable commit SHA returned by preview_github_deployment")
         },
         annotations: {
           readOnlyHint: false,
           destructiveHint: true,
           idempotentHint: false,
           openWorldHint: true
-        }
+        },
+        _meta: richToolMeta()
       },
-      async ({ app_name, github_repo, git_ref }, extra) => {
+      async ({ app_name, github_repo, git_ref, source_sha }, extra) => {
         try {
           const userId = resolveAuthorizedUserId(extra, deps);
           const normalizedRepo = github_repo.toLowerCase();
@@ -381,15 +668,27 @@ export function createHerokuMcpServer(deps: ServerDeps): McpServer {
             );
           }
 
+          const reviewedSource = await fetchGitHubSourcePreview({
+            repository: github_repo,
+            gitRef: git_ref
+          });
+          if (reviewedSource.source_sha.toLowerCase() !== source_sha.toLowerCase()) {
+            throw new ToolError(
+              `The Git ref changed after review. Preview it again before deploying. Reviewed ${source_sha}, current ${reviewedSource.source_sha}.`,
+              "SOURCE_CHANGED_AFTER_PREVIEW",
+              409
+            );
+          }
+
           await deps.schemaService.ensureReady();
           const request: ExecuteRequest = {
             operation_id: "POST /apps/{app_identity}/builds",
             path_params: { app_identity: app_name },
             body: {
               source_blob: {
-                url: `https://github.com/${github_repo}/archive/${encodeURIComponent(git_ref)}.tar.gz`,
-                version: git_ref,
-                version_description: `Slackbot deployment of ${github_repo}@${git_ref}`
+                url: `https://github.com/${github_repo}/archive/${source_sha}.tar.gz`,
+                version: source_sha,
+                version_description: `Slackbot deployment of reviewed ${github_repo}@${source_sha.slice(0, 10)}`
               }
             }
           };
@@ -409,14 +708,39 @@ export function createHerokuMcpServer(deps: ServerDeps): McpServer {
             { ...request, confirm_write_token: confirmationToken },
             userId
           );
-          return serializeResult(
-            normalizeBuildResult({
+          const normalized = normalizeBuildResult({
               appName: app_name,
               githubRepo: github_repo,
               gitRef: git_ref,
               body: result.body
+            });
+          const data = {
+            view: "deployment",
+            app: getAppLinks(app_name),
+            source: {
+              repository: github_repo,
+              git_ref,
+              source_sha,
+              commit_url: reviewedSource.commit_url
+            },
+            build: {
+              id: normalized.build_id,
+              status: normalized.status ?? "pending",
+              created_at: normalized.created_at,
+              updated_at: normalized.updated_at,
+              release_id: normalized.release_id
+            }
+          };
+          return richResult({
+            data,
+            text: `Started deployment of reviewed commit ${source_sha.slice(0, 10)} to ${app_name}. Build ID: ${normalized.build_id ?? "pending"}.`,
+            blocks: deploymentBlocks({
+              deps,
+              data,
+              appName: app_name,
+              status: normalized.status ?? "pending"
             })
-          );
+          });
         } catch (error) {
           return {
             isError: true,
@@ -440,7 +764,8 @@ export function createHerokuMcpServer(deps: ServerDeps): McpServer {
           readOnlyHint: true,
           destructiveHint: false,
           openWorldHint: true
-        }
+        },
+        _meta: richToolMeta()
       },
       async ({ app_name, build_id }, extra) => {
         try {
@@ -465,14 +790,39 @@ export function createHerokuMcpServer(deps: ServerDeps): McpServer {
             userId
           );
 
-          return serializeResult(
-            normalizeBuildResult({
+          const normalized = normalizeBuildResult({
               appName: app_name,
               githubRepo: "",
               gitRef: "",
               body: result.body
+            });
+          const app = getAppLinks(app_name);
+          const livePreview =
+            normalized.status === "succeeded"
+              ? await fetchLiveAppSummary({ appUrl: app.web_url })
+              : undefined;
+          const data = {
+            view: "deployment_status",
+            app,
+            build: {
+              id: normalized.build_id ?? build_id,
+              status: normalized.status ?? "pending",
+              created_at: normalized.created_at,
+              updated_at: normalized.updated_at,
+              release_id: normalized.release_id
+            },
+            live_preview: livePreview
+          };
+          return richResult({
+            data,
+            text: `Heroku build ${build_id} for ${app_name} is ${normalized.status ?? "pending"}.`,
+            blocks: deploymentBlocks({
+              deps,
+              data,
+              appName: app_name,
+              status: normalized.status ?? "pending"
             })
-          );
+          });
         } catch (error) {
           return {
             isError: true,
@@ -507,6 +857,39 @@ export function createHerokuMcpServer(deps: ServerDeps): McpServer {
       const status = await deps.oauthService.getAuthStatus(userId);
       return serializeResult(status);
     }
+  );
+
+  const publicBaseUrl = getPublicBaseUrl(deps);
+  const publicOrigin = new URL(publicBaseUrl).origin;
+  const resourceUiMeta = {
+    ui: {
+      csp: {
+        resourceDomains: ["https://esm.sh", publicOrigin],
+        connectDomains: ["https://esm.sh"]
+      },
+      prefersBorder: true
+    }
+  };
+  server.registerResource(
+    "Heroku deployment workspace",
+    HEROKU_DEPLOY_UI_URI,
+    {
+      title: "Heroku deployment workspace",
+      description:
+        "Interactive source review, immutable-commit deployment, build progress, logs, and live-app preview for Slackbot.",
+      mimeType: MCP_APP_MIME_TYPE,
+      _meta: resourceUiMeta
+    },
+    async () => ({
+      contents: [
+        {
+          uri: HEROKU_DEPLOY_UI_URI,
+          mimeType: MCP_APP_MIME_TYPE,
+          text: createHerokuDeployAppHtml({ logoUrl: getHerokuLogoUrl(deps) }),
+          _meta: resourceUiMeta
+        }
+      ]
+    })
   );
 
   return server;

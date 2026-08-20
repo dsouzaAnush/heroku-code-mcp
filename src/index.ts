@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { randomUUID } from "node:crypto";
+import { resolve } from "node:path";
 import express, { type Request, type RequestHandler } from "express";
 import pinoHttpImport from "pino-http";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
@@ -99,6 +100,14 @@ async function main(): Promise<void> {
   });
 
   const app = express();
+  app.use(
+    "/assets",
+    express.static(resolve(process.cwd(), "assets"), {
+      fallthrough: false,
+      immutable: true,
+      maxAge: "1d"
+    })
+  );
   app.use(
     express.json({
       limit: "1mb",
