@@ -158,8 +158,11 @@ export function createHerokuDeployAppHtml(input: { logoUrl: string }): string {
     function renderApps(data) {
       const apps = Array.isArray(data.apps) ? data.apps : [];
       const starter = data.deployment_starter || null;
+      const visibleApps = starter
+        ? [...apps.filter((item) => item.name === starter.app_name), ...apps.filter((item) => item.name !== starter.app_name)]
+        : apps;
       root.innerHTML = '<div class="summary"><span class="label">Heroku account</span><span class="value">' + apps.length + ' apps available</span></div>' +
-        '<div class="app-list">' + apps.map((item) => {
+        '<div class="app-list">' + visibleApps.slice(0, 12).map((item) => {
           const state = item.maintenance ? "Maintenance mode" : "Available";
           const canReview = starter && starter.app_name === item.name;
           const button = canReview

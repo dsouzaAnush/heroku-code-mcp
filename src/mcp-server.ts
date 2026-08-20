@@ -106,7 +106,13 @@ function appListBlocks(
     git_ref: string;
   }
 ): Array<Record<string, unknown>> {
-  const appBlocks = data.apps.slice(0, 12).map((app) => ({
+  const visibleApps = deploymentStarter
+    ? [
+        ...data.apps.filter((app) => app.name === deploymentStarter.app_name),
+        ...data.apps.filter((app) => app.name !== deploymentStarter.app_name)
+      ]
+    : data.apps;
+  const appBlocks = visibleApps.slice(0, 12).map((app) => ({
     type: "section",
     text: {
       type: "mrkdwn",
