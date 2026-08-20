@@ -61,6 +61,31 @@ function getAppLinks(appName: string) {
   };
 }
 
+async function getCanonicalAppLinks(
+  deps: ServerDeps,
+  userId: string,
+  appName: string
+) {
+  const result = await deps.executor.execute(
+    {
+      operation_id: "GET /apps/{app_identity}",
+      path_params: { app_identity: appName }
+    },
+    userId
+  );
+  const body =
+    result.body && typeof result.body === "object"
+      ? (result.body as Record<string, unknown>)
+      : {};
+  return {
+    ...getAppLinks(appName),
+    web_url:
+      typeof body.web_url === "string"
+        ? body.web_url
+        : getAppLinks(appName).web_url
+  };
+}
+
 function richToolMeta() {
   return {
     ui: { resourceUri: HEROKU_DEPLOY_UI_URI },
@@ -224,7 +249,11 @@ export function deploymentBlocks(input: {
   appName: string;
   status?: string;
 }): Array<Record<string, unknown>> {
-  const app = getAppLinks(input.appName);
+  const resultApp =
+    input.data.app && typeof input.data.app === "object"
+      ? (input.data.app as Record<string, unknown>)
+      : {};
+  const app = { ...getAppLinks(input.appName), ...resultApp };
   const status = input.status ?? "pending";
   const complete = status === "succeeded" || status === "failed";
   const build =
@@ -622,7 +651,7 @@ export function createHerokuMcpServer(deps: ServerDeps): McpServer {
             ) ??
             deps.config.slackDeployAllowedApps[0];
           const deploymentAppLinks = preferredDeploymentName
-            ? getAppLinks(preferredDeploymentName)
+            ? await getCanonicalAppLinks(deps, userId, preferredDeploymentName)
             : undefined;
           const deploymentApp = preferredDeploymentName
             ? (normalized.apps.find((app) => app.name === preferredDeploymentName) ?? {
@@ -693,7 +722,7 @@ export function createHerokuMcpServer(deps: ServerDeps): McpServer {
       },
       async ({ app_name, github_repo, git_ref }, extra) => {
         try {
-          resolveAuthorizedUserId(extra, deps);
+          const userId = resolveAuthorizedUserId(extra, deps);
           const normalizedRepo = github_repo.toLowerCase();
           if (!deps.config.slackDeployAllowedApps.includes(app_name)) {
             throw new ToolError(
@@ -714,10 +743,12 @@ export function createHerokuMcpServer(deps: ServerDeps): McpServer {
             repository: github_repo,
             gitRef: git_ref
           });
+          await deps.schemaService.ensureReady();
+          const app = await getCanonicalAppLinks(deps, userId, app_name);
           const data = {
             view: "deployment_preview",
             status: "ready_to_deploy",
-            app: getAppLinks(app_name),
+            app,
             source
           };
           return richResult({
@@ -796,6 +827,7 @@ export function createHerokuMcpServer(deps: ServerDeps): McpServer {
           }
 
           await deps.schemaService.ensureReady();
+          const app = await getCanonicalAppLinks(deps, userId, app_name);
           const request: ExecuteRequest = {
             operation_id: "POST /apps/{app_identity}/builds",
             path_params: { app_identity: app_name },
@@ -831,7 +863,7 @@ export function createHerokuMcpServer(deps: ServerDeps): McpServer {
             });
           const data = {
             view: "deployment",
-            app: getAppLinks(app_name),
+            app,
             source: {
               repository: github_repo,
               git_ref,
@@ -894,6 +926,7 @@ export function createHerokuMcpServer(deps: ServerDeps): McpServer {
           }
 
           await deps.schemaService.ensureReady();
+          const app = await getCanonicalAppLinks(deps, userId, app_name);
           const result = await deps.executor.execute(
             {
               operation_id: "GET /apps/{app_identity}/builds/{build_identity}",
@@ -911,7 +944,6 @@ export function createHerokuMcpServer(deps: ServerDeps): McpServer {
               gitRef: "",
               body: result.body
             });
-          const app = getAppLinks(app_name);
           const livePreview =
             normalized.status === "succeeded"
               ? await fetchLiveAppSummary({ appUrl: app.web_url })

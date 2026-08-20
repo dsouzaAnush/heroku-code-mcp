@@ -109,6 +109,10 @@ describe("Slack deployment cards", () => {
       appName: "slackbot-mcp-demo-40973",
       status: "succeeded",
       data: {
+        app: {
+          name: "slackbot-mcp-demo-40973",
+          web_url: "https://slackbot-mcp-demo-40973-assigned.herokuapp.com/"
+        },
         build: { id: "bc2373aa-736a-41bf-ae19-9cb147a1cbed" },
         live_preview: {
           title: "Node.js Getting Started on Heroku",
@@ -121,5 +125,8 @@ describe("Slack deployment cards", () => {
     expect(JSON.stringify(blocks)).toContain("Deployment is live");
     expect(JSON.stringify(blocks)).toContain("Node.js Getting Started on Heroku");
     expect(JSON.stringify(blocks)).toContain("HTTP 200");
+    expect(JSON.stringify(blocks)).toContain(
+      "https://slackbot-mcp-demo-40973-assigned.herokuapp.com/"
+    );
   });
 });
