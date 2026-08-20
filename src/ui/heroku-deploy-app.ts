@@ -157,13 +157,35 @@ export function createHerokuDeployAppHtml(input: { logoUrl: string }): string {
 
     function renderApps(data) {
       const apps = Array.isArray(data.apps) ? data.apps : [];
+      const starter = data.deployment_starter || null;
       root.innerHTML = '<div class="summary"><span class="label">Heroku account</span><span class="value">' + apps.length + ' apps available</span></div>' +
         '<div class="app-list">' + apps.map((item) => {
           const state = item.maintenance ? "Maintenance mode" : "Available";
-          const button = item.web_url ? '<button class="button" data-link="' + escapeHtml(item.web_url) + '">Open app</button>' : "";
+          const canReview = starter && starter.app_name === item.name;
+          const button = canReview
+            ? '<button class="button primary" data-review-source>Review source</button>'
+            : item.web_url ? '<button class="button" data-link="' + escapeHtml(item.web_url) + '">Open app</button>' : "";
           return '<div class="app-row"><div><strong>' + escapeHtml(item.name) + '</strong><span>' + state + (item.updated_at ? ' · Updated ' + escapeHtml(new Date(item.updated_at).toLocaleString()) : "") + '</span></div>' + button + '</div>';
         }).join("") + '</div>';
       wireLinks();
+      const reviewButton = root.querySelector("[data-review-source]");
+      if (reviewButton && starter) {
+        reviewButton.addEventListener("click", async () => {
+          reviewButton.disabled = true;
+          reviewButton.innerHTML = '<span class="spinner"></span>Loading source…';
+          try {
+            const result = await app.callServerTool({
+              name: "preview_github_deployment",
+              arguments: starter
+            });
+            if (result.isError) throw new Error(result.content?.[0]?.text || "Source preview failed");
+            render(result.structuredContent || {});
+          } catch (error) {
+            reviewButton.disabled = false;
+            reviewButton.textContent = "Try source preview again";
+          }
+        });
+      }
     }
 
     function renderPreview(data) {

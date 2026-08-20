@@ -99,7 +99,12 @@ function herokuContextBlock(deps: ServerDeps): Record<string, unknown> {
 
 function appListBlocks(
   deps: ServerDeps,
-  data: ReturnType<typeof normalizeAppList>
+  data: ReturnType<typeof normalizeAppList>,
+  deploymentStarter?: {
+    app_name: string;
+    github_repo: string;
+    git_ref: string;
+  }
 ): Array<Record<string, unknown>> {
   const appBlocks = data.apps.slice(0, 12).map((app) => ({
     type: "section",
@@ -107,7 +112,17 @@ function appListBlocks(
       type: "mrkdwn",
       text: `*${app.name}*\n${app.maintenance ? "Maintenance mode" : "Available"}${app.updated_at ? ` · updated ${app.updated_at}` : ""}`
     },
-    ...(app.web_url
+    ...(deploymentStarter?.app_name === app.name
+      ? {
+          accessory: {
+            type: "button",
+            text: { type: "plain_text", text: "Review source" },
+            style: "primary",
+            action_id: "tool:preview_github_deployment",
+            value: JSON.stringify(deploymentStarter)
+          }
+        }
+      : app.web_url
       ? {
           accessory: {
             type: "button",
@@ -115,8 +130,8 @@ function appListBlocks(
             url: app.web_url,
             action_id: `open_${app.name}`
           }
-        }
-      : {})
+      }
+    : {})
   }));
 
   return [
@@ -538,11 +553,28 @@ export function createHerokuMcpServer(deps: ServerDeps): McpServer {
           await deps.schemaService.ensureReady();
           const apps = await deps.executor.listApps(userId);
           const normalized = normalizeAppList(apps);
-          const data = { view: "app_list", ...normalized };
+          const deploymentApp = normalized.apps.find(
+            (app) =>
+              deps.config.slackDeployAllowedApps.includes(app.name) &&
+              !new URL(getPublicBaseUrl(deps)).hostname.startsWith(`${app.name}.`)
+          );
+          const deploymentRepo =
+            deps.config.slackDeployAllowedRepos.find(
+              (repo) => repo === "heroku/nodejs-getting-started"
+            ) ?? deps.config.slackDeployAllowedRepos[0];
+          const deploymentStarter =
+            deploymentApp && deploymentRepo
+              ? {
+                  app_name: deploymentApp.name,
+                  github_repo: deploymentRepo,
+                  git_ref: "main"
+                }
+              : undefined;
+          const data = { view: "app_list", ...normalized, deployment_starter: deploymentStarter };
           return richResult({
             data,
             text: `Found ${normalized.count} Heroku apps.`,
-            blocks: appListBlocks(deps, normalized)
+            blocks: appListBlocks(deps, normalized, deploymentStarter)
           });
         } catch (error) {
           return {
