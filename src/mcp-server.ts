@@ -559,15 +559,28 @@ export function createHerokuMcpServer(deps: ServerDeps): McpServer {
           await deps.schemaService.ensureReady();
           const apps = await deps.executor.listApps(userId);
           const normalized = normalizeAppList(apps);
-          const allowlistedDeploymentApps = normalized.apps.filter((app) =>
-            deps.config.slackDeployAllowedApps.includes(app.name)
-          );
-          const deploymentApp =
-            allowlistedDeploymentApps.find((app) => app.name.includes("demo")) ??
-            allowlistedDeploymentApps.find(
-              (app) => !new URL(getPublicBaseUrl(deps)).hostname.startsWith(app.name)
+          const preferredDeploymentName =
+            deps.config.slackDeployAllowedApps.find((name) => name.includes("demo")) ??
+            deps.config.slackDeployAllowedApps.find(
+              (name) => !new URL(getPublicBaseUrl(deps)).hostname.startsWith(name)
             ) ??
-            allowlistedDeploymentApps[0];
+            deps.config.slackDeployAllowedApps[0];
+          const deploymentAppLinks = preferredDeploymentName
+            ? getAppLinks(preferredDeploymentName)
+            : undefined;
+          const deploymentApp = preferredDeploymentName
+            ? (normalized.apps.find((app) => app.name === preferredDeploymentName) ?? {
+                name: preferredDeploymentName,
+                id: undefined,
+                web_url: deploymentAppLinks?.web_url,
+                maintenance: false,
+                updated_at: undefined
+              })
+            : undefined;
+          const visibleAppData =
+            deploymentApp && !normalized.apps.some((app) => app.name === deploymentApp.name)
+              ? { ...normalized, apps: [deploymentApp, ...normalized.apps] }
+              : normalized;
           const deploymentRepo =
             deps.config.slackDeployAllowedRepos.find(
               (repo) => repo === "heroku/nodejs-getting-started"
@@ -580,11 +593,15 @@ export function createHerokuMcpServer(deps: ServerDeps): McpServer {
                   git_ref: "main"
                 }
               : undefined;
-          const data = { view: "app_list", ...normalized, deployment_starter: deploymentStarter };
+          const data = {
+            view: "app_list",
+            ...visibleAppData,
+            deployment_starter: deploymentStarter
+          };
           return richResult({
             data,
             text: `Found ${normalized.count} Heroku apps.`,
-            blocks: appListBlocks(deps, normalized, deploymentStarter)
+            blocks: appListBlocks(deps, visibleAppData, deploymentStarter)
           });
         } catch (error) {
           return {
