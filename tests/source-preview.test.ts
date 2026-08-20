@@ -39,8 +39,8 @@ describe("GitHub deployment source preview", () => {
 
     expect(preview.source_sha).toBe("a".repeat(40));
     expect(preview.files.map((file) => file.path)).toEqual([
-      "README.md",
-      "src/index.ts"
+      "src/index.ts",
+      "README.md"
     ]);
     expect(requested).toContain(
       `https://raw.githubusercontent.com/example/repo/${"a".repeat(40)}/README.md`

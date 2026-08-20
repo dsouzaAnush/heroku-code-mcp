@@ -5,10 +5,6 @@ const MAX_FILE_CHARACTERS = 12_000;
 const MAX_TOTAL_CHARACTERS = 48_000;
 
 const COMMON_SOURCE_PATHS = [
-  "README.md",
-  "package.json",
-  "Procfile",
-  "app.json",
   "src/index.ts",
   "src/index.js",
   "src/server.ts",
@@ -22,9 +18,13 @@ const COMMON_SOURCE_PATHS = [
   "public/index.html",
   "src/App.tsx",
   "src/App.jsx",
+  "package.json",
+  "Procfile",
+  "app.json",
   "requirements.txt",
   "pyproject.toml",
-  "main.py"
+  "main.py",
+  "README.md"
 ] as const;
 
 export interface SourcePreviewFile {
@@ -67,18 +67,20 @@ function encodePath(value: string): string {
 function filePriority(path: string): number {
   const normalized = path.toLowerCase();
   const exactPriority = new Map<string, number>([
-    ["readme.md", 0],
-    ["package.json", 1],
-    ["procfile", 2],
-    ["app.json", 3],
-    ["src/index.ts", 4],
-    ["src/index.js", 4],
-    ["src/server.ts", 5],
-    ["src/server.js", 5],
-    ["index.ts", 6],
-    ["index.js", 6],
-    ["server.ts", 7],
-    ["server.js", 7]
+    ["src/index.ts", 0],
+    ["src/index.js", 0],
+    ["src/server.ts", 1],
+    ["src/server.js", 1],
+    ["index.ts", 2],
+    ["index.js", 2],
+    ["server.ts", 3],
+    ["server.js", 3],
+    ["app.ts", 4],
+    ["app.js", 4],
+    ["package.json", 20],
+    ["procfile", 21],
+    ["app.json", 22],
+    ["readme.md", 40]
   ]);
 
   const exact = exactPriority.get(normalized);
